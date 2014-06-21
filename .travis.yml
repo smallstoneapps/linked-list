@@ -29,27 +29,9 @@
 #
 # --------------------
 #
-# Makefile
+# .travis.yml
 #
 
-PEBBLE_HEADERS=tests/include
-
-CC=gcc
-ifeq ($(TRAVIS), true)
-CFLAGS=
-else
-CFLAGS=-std=c11
-endif
-CINCLUDES=-I $(PEBBLE_HEADERS) -I tests/
-
-TEST_FILES=tests/linked-list.c
-SRC_FILES=src/linked-list.c
-TEST_EXTRAS=
-
-all: test
-
-test:
-	@$(CC) $(CFLAGS) $(CINCLUDES) $(TEST_FILES) $(SRC_FILES) $(TEST_EXTRAS) -o tests/run
-	@tests/run
-	@rm tests/run
-	@printf "\x1B[0m"
+language: c
+install: ./tests/travis-install.sh
+script: make test

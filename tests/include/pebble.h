@@ -19,64 +19,11 @@
 #include <time.h>
 #include <string.h>
 
+#include "pebble_warn_unsupported_functions.h"
+
 #ifndef __FILE_NAME__
 #define __FILE_NAME__ __FILE__
 #endif
-
-//! Status codes
-typedef enum StatusCode {
-  //! Operation completed successfully.
-  S_SUCCESS = 0,
-
-  //! An error occurred (no description).
-  E_ERROR = -1,
-
-  //! No idea what went wrong.
-  E_UNKNOWN = -2,
-
-  //! There was a generic internal logic error.
-  E_INTERNAL = -3,
-
-  //! The function was not called correctly.
-  E_INVALID_ARGUMENT = -4,
-
-  //! Insufficient allocatable memory available.
-  E_OUT_OF_MEMORY = -5,
-
-  //! Insufficient long-term storage available.
-  E_OUT_OF_STORAGE = -6,
-
-  //! Insufficient resources available.
-  E_OUT_OF_RESOURCES = -7,
-
-  //! Argument out of range (may be dynamic).
-  E_RANGE = -8,
-
-  //! Target of operation does not exist.
-  E_DOES_NOT_EXIST = -9,
-
-  //! Operation not allowed (may depend on state).
-  E_INVALID_OPERATION = -10,
-
-  //! Another operation prevented this one.
-  E_BUSY = -11,
-
-
-  //! Equivalent of boolean true.
-  S_TRUE = 1,
-
-  //! Equivalent of boolean false.
-  S_FALSE = 0,
-
-  //! For list-style requests.  At end of list.
-  S_NO_MORE_ITEMS = 2,
-
-  //! No action was taken as none was required.
-  S_NO_ACTION_REQUIRED = 3,
-
-} StatusCode;
-
-typedef int32_t status_t;
 
 #define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
 
@@ -85,7 +32,17 @@ typedef struct ListNode {
   struct ListNode* prev;
 } ListNode;
 
-#define IS_SIGNED(var) (((__typeof__(var)) - 1) < 0)
+#define IS_SIGNED(var) (__builtin_choose_expr( \
+  __builtin_types_compatible_p(__typeof__(var), unsigned char), false, \
+  __builtin_choose_expr( \
+  __builtin_types_compatible_p(__typeof__(var), unsigned short), false, \
+  __builtin_choose_expr( \
+  __builtin_types_compatible_p(__typeof__(var), unsigned int), false, \
+  __builtin_choose_expr( \
+  __builtin_types_compatible_p(__typeof__(var), unsigned long), false, \
+  __builtin_choose_expr( \
+  __builtin_types_compatible_p(__typeof__(var), unsigned long long), false, true))))) \
+)
 
 //! @addtogroup UI
 //! @{
@@ -93,39 +50,47 @@ typedef struct ListNode {
 //! @addtogroup Clicks
 //! \brief Handling button click interactions
 //!
-//! Click handlers work by consuming raw button up and button down events and distilling those
-//! events into configurable user interactions. These interactions can be any one of the following:
+//! Each Pebble window handles Pebble's buttons while it is displayed. Raw button down and button
+//! up events are transformed into click events that can be transferred to your app:
 //!
-//! * Single-click. Detects a single click, that is, a button down event followed by button up event.
-//! It also offers hold-to-repeat functionality.
+//! * Single-click. Detects a single click, that is, a button down event followed by a button up event.
+//! It also offers hold-to-repeat functionality (repeated click).
 //! * Multi-click. Detects double-clicking, triple-clicking and other arbitrary click counts.
 //! It can fire its event handler on all of the matched clicks, or just the last.
 //! * Long-click. Detects long clicks, that is, press-and-hold.
 //! * Raw. Simply forwards the raw button events. It is provided as a way to use both the higher level
 //! "clicks" processing and the raw button events at the same time.
 //!
-//! You set up click handlers in each application window in order to process button input and call the
-//! necessary event handlers.
+//! To receive click events when a window is displayed, you must register a \ref ClickConfigProvider for
+//! this window with \ref window_set_click_config_provider(). Your \ref ClickConfigProvider will be called every time
+//! the window becomes visible with one context argument. By default this context is a pointer to the window but you can
+//! change this with \ref window_set_click_config_provider_with_context().
 //!
-//! A Pebble window handles various click inputs, like short and long clicks, hold-to-repeat clicks
-//! and double clicks, by setting a Click Configuration Provider callback function.
+//! In your \ref ClickConfigProvider you call the \ref window_single_click_subscribe(), \ref window_single_repeating_click_subscribe(),
+//! \ref window_multi_click_subscribe(), \ref window_long_click_subscribe() and \ref window_raw_click_subscribe() functions to register
+//! a handler for each event you wish to receive.
 //!
-//! For convenience, a click callback provides a \ref ClickRecognizer and a user-specified context.
-//! The \ref ClickRecognizer can be used to determine which button triggered the callback.
+//! For convenience, click handlers are provided with a \ref ClickRecognizerRef and a user-specified context.
 //!
-//! Note that you could have different buttons that share the same callback.
-//! However, you should use the \ref ClickRecognizer to differentiate actions based on the triggering button.
+//! The \ref ClickRecognizerRef can be used in combination with \ref click_number_of_clicks_counted(), \ref
+//! click_recognizer_get_button_id() and \ref click_recognizer_is_repeating() to get more information about the click. This is
+//! useful if you want different buttons or event types to share the same handler.
 //!
-//! You can also have multiple types of handlers on the same button: for example, click and long
-//! click on the Select button.
+//! The user-specified context is the context of your \ref ClickConfigProvider (see above). By default it points to the window.
+//! You can override it for all handlers with \ref window_set_click_config_provider_with_context() or for a specific button with \ref
+//! window_set_click_context().
 //!
-//! Refer to the \htmlinclude UiFramework.html (chapter "Clicks") for a conceptual
-//! overview of clicks and relevant code examples. For SDK code examples, refer to
-//!   * Examples/todolist-demo
+//! <h3>User interaction in watchfaces</h3>
+//! Watchfaces cannot use the buttons to interact with the user. Instead, you can use the \ref AccelerometerService.
+//!
+//! <h3>About the Back button</h3>
+//! By default, the Back button will always pop to the previous window on the \ref WindowStack (and leave the app if the current
+//! window is the only window). You can override the default back button behavior with \ref window_single_click_subscribe() and
+//! \ref window_multi_click_subscribe() but you cannot set a repeating, long or raw click handler on the back button because a long press
+//! will always terminate the app and return to the main menu.
 //!
 //! <h3>Usage example</h3>
-//! For example, you first associate a click config provider callback with your window. Your callback
-//! will provide your click configuration to Pebble OS.
+//! First associate a click config provider callback with your window:
 //! \code{.c}
 //! void app_init(void) {
 //!   ...
@@ -151,32 +116,33 @@ typedef struct ListNode {
 //! \code{.c}
 //! void down_single_click_handler(ClickRecognizerRef recognizer, void *context) {
 //!   ... called on single click ...
-//!   Window *window = (Window *)context; // This context defaults to the window, but may be changed with \ref window_set_click_context.
+//!   Window *window = (Window *)context;
 //! }
 //! void select_single_click_handler(ClickRecognizerRef recognizer, void *context) {
 //!   ... called on single click, and every 1000ms of being held ...
-//!   Window *window = (Window *)context; // This context defaults to the window, but may be changed with \ref window_set_click_context.
+//!   Window *window = (Window *)context;
 //! }
 //!
 //! void select_multi_click_handler(ClickRecognizerRef recognizer, void *context) {
 //!   ... called for multi-clicks ...
-//!   Window *window = (Window *)context; // This context defaults to the window, but may be changed with \ref window_set_click_context.
+//!   Window *window = (Window *)context;
 //!   const uint16_t count = click_number_of_clicks_counted(recognizer);
 //! }
 //!
 //! void select_long_click_handler(ClickRecognizerRef recognizer, void *context) {
 //!   ... called on long click start ...
-//!   Window *window = (Window *)context; // This context defaults to the window, but may be changed with \ref window_set_click_context.
+//!   Window *window = (Window *)context;
 //! }
 //!
 //! void select_long_click_release_handler(ClickRecognizerRef recognizer, void *context) {
 //!   ... called when long click is released ...
-//!   Window *window = (Window *)context; // This context defaults to the window, but may be changed with \ref window_set_click_context.
+//!   Window *window = (Window *)context;
 //! }
 //! \endcode
-//! See Examples/watchapps/pebble_arcade/src/entry.c for an example of click usage.
-//! @note The Back button can't be re-configured. It is hard-wired to pop to the previous window on
-//! the \ref WindowStack.
+//!
+//! <h3>See also</h3>
+//! Refer to the \htmlinclude UiFramework.html (chapter "Clicks") for a conceptual
+//! overview of clicks and relevant code examples.
 //!
 //! @{
 
@@ -236,27 +202,7 @@ int32_t atan2_lookup(int16_t y, int16_t x);
 //!
 //! This module contains utilities to get the current time and create strings with formatted
 //! dates and times.
-//! @note When implementing a watchface or application that tells time, make sure to check
-//! out the `tick_info` field of \ref PebbleAppHandlers.
 //! @{
-
-//! Time unit flags that can be used to create a bitmask for use in \ref PebbleAppTickInfo.
-//! @see PebbleAppTickInfo
-//! @see PebbleAppHandlers
-typedef enum {
-  //! Flag to represent the "seconds" time unit
-  SECOND_UNIT = 1 << 0,
-  //! Flag to represent the "minutes" time unit
-  MINUTE_UNIT = 1 << 1,
-  //! Flag to represent the "hours" time unit
-  HOUR_UNIT = 1 << 2,
-  //! Flag to represent the "days" time unit
-  DAY_UNIT = 1 << 3,
-  //! Flag to represent the "months" time unit
-  MONTH_UNIT = 1 << 4,
-  //! Flag to represent the "years" time unit
-  YEAR_UNIT = 1 << 5
-} TimeUnits;
 
 //! Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
 //! time).
@@ -368,7 +314,7 @@ void battery_state_service_subscribe(BatteryStateHandler handler);
 void battery_state_service_unsubscribe(void);
 
 //! Peek at the last known battery state.
-//! @return a \ref BatterChargeState containing the last known data
+//! @return a \ref BatteryChargeState containing the last known data
 BatteryChargeState battery_state_service_peek(void);
 
 //! @} // group BatteryStateService
@@ -402,6 +348,16 @@ typedef struct __attribute__((__packed__)) AccelData {
   uint64_t timestamp;
 } AccelData;
 
+//! A single accelerometer sample for all three axes
+typedef struct __attribute__((__packed__)) {
+  //! acceleration along the x axis
+  int16_t x;
+  //! acceleration along the y axis
+  int16_t y;
+  //! acceleration along the z axis
+  int16_t z;
+} AccelRawData;
+
 typedef enum {
   //! Accelerometer's X axis. The positive direction along the X axis goes
   //! toward the right of the watch.
@@ -418,6 +374,12 @@ typedef enum {
 //! @param data Pointer to the collected accelerometer samples.
 //! @param num_samples the number of samples stored in data.
 typedef void (*AccelDataHandler)(AccelData *data, uint32_t num_samples);
+
+//! Callback type for accelerometer raw data events
+//! @param data Pointer to the collected accelerometer samples.
+//! @param num_samples the number of samples stored in data.
+//! @param timestamp the timestamp, in ms, of the first sample.
+typedef void (*AccelRawDataHandler)(AccelRawData *data, uint32_t num_samples, uint64_t timestamp);
 
 //! Callback type for accelerometer tap events
 //! @param axis the axis on which a tap was registered (x, y, or z)
@@ -471,15 +433,131 @@ void accel_tap_service_subscribe(AccelTapHandler handler);
 //! the previously registered handler will no longer be called.
 void accel_tap_service_unsubscribe(void);
 
+//! Subscribe to the accelerometer raw data event service. Once subscribed, the handler
+//! gets called every time there are new accelerometer samples available.
+//! @note Cannot use \ref accel_service_peek() when subscribed to accelerometer data events.
+//! @param handler A callback to be executed on accelerometer data events
+//! @param samples_per_update the number of samples to buffer, between 0 and 25.
+void accel_raw_data_service_subscribe(uint32_t samples_per_update, AccelRawDataHandler handler);
+
 //! @} // group AccelerometerService
+
+//! @addtogroup CompassService
+//!
+//! \brief Using the Pebble compass
+//!
+//!
+//! For available code samples, see
+//! Examples/watchapps/feature_compass
+//! @{
+
+#define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
+
+//! Structure containing 3-axis magnetometer data
+typedef struct __attribute__((__packed__)) {
+ //! magnetic field along the x axis
+ int16_t x;
+ //! magnetic field along the y axis
+ int16_t y;
+ //! magnetic field along the z axis
+ int16_t z;
+} MagData;
+
+typedef enum {
+  CompassStatusDataInvalid = 0, // data is invalid
+  CompassStatusCalibrating,     // data valid but being refined
+  CompassStatusCalibrated       // data valid & refinement complete
+} CompassStatus;
+
+//! Represents an angle relative to a reference direction, e.g. (magnetic) north.
+//! The angle value is scaled linearly, such that a value of TRIG_MAX_ANGLE corresponds to 360 degrees or 2 PI radians.
+//! Thus, if heading towards north, north is 0, east is TRIG_MAX_ANGLE/4, south is TRIG_MAX_ANGLE/2, and so on.
+typedef int32_t CompassHeading;
+
+//! Structure containing a single heading towards magnetic or true north.
+//!
+//! The API will try to convert all measured values to true north.
+//! But please note that depending on user permissions, GPS availability and Bluetooth connection
+//! the API might only be able to return the heading towards magnetic north (see is_true_north).
+//!
+//! Depending on your location on earth, the measured heading towards magnetic north and
+//! true north can significantly differ. This is called magnetic variation or declination.
+//! When providing directions to a destination location or a reliable compass application
+//! make sure you check for is_true_north before presenting the value to the user.
+//!
+//! For available code samples, see
+//! Examples/watchapps/feature_compass_true_north
+typedef struct {
+  //! measured angle relative to magnetic north
+  CompassHeading magnetic_heading;
+  //! measured angle relative to true north (magnetic north if declination
+  //! invalid)
+  CompassHeading true_heading;
+  //! indicates compass data quality information
+  CompassStatus compass_status;
+  //! true, if declination (true_heading) valid . False otherwise
+  bool is_declination_valid;
+} CompassHeadingData;
+
+//! Callback type for compass heading events
+//! @param heading copy of last recorded heading
+typedef void (*CompassHeadingHandler)(CompassHeadingData heading);
+
+//! Change the minimum angular change required to generate new compass heading events.
+//! The angular distance is measured relative to the last delivered heading event.
+//! Use 0 to be notified of all movements.
+//! Negative values and values > TRIG_MAX_ANGLE / 2 are not valid.
+//! The default value of this property is TRIG_MAX_ANGLE / 360.
+//! @return Non-Zero, if filter cannot be applied.
+//! @see compass_service_subscribe
+int compass_service_set_heading_filter(CompassHeading filter);
+
+//! Subscribe to the compass heading event service. Once subscribed, the handler
+//! gets called every time the angular distance relative to the previous value
+//! exceeds the configured filter.
+//! @param handler A callback to be executed on heading events
+//! @see compass_service_set_heading_filter
+//! @see compass_service_unsubscribe
+void compass_service_subscribe(CompassHeadingHandler handler);
+
+//! Unsubscribe from the compass heading event service. Once unsubscribed,
+//! the previously registered handler will no longer be called.
+//! Also, call this function to turn of the compass hardware after you don't call
+//! compass_service_peek() anymore.
+//! @see compass_service_subscribe
+void compass_service_unsubscribe(void);
+
+//! Peek at the last recorded reading.
+//! @param[out] data a pointer to a pre-allocated CompassHeadingData
+//! @return -1 if the magnetometer is not available
+int compass_service_peek(CompassHeadingData *data);
+
+//! @} // group CompassService
 
 //! @addtogroup TickTimerService
 //! \brief Handling time components
 //!
 //! The TickTimerService allows your app to be called every time one Time component has changed.
 //! This is extremely important for watchfaces. Your app can choose on which time component
-//! change a tick should occur. Time components are defined by the TimeUnits enum in pebble.h.
+//! change a tick should occur. Time components are defined by a \ref TimeUnits enum bitmask.
 //! @{
+
+//! Time unit flags that can be used to create a bitmask for use in \ref tick_timer_service_subscribe().
+//! This will also be passed to \ref TickHandler.
+typedef enum {
+  //! Flag to represent the "seconds" time unit
+  SECOND_UNIT = 1 << 0,
+  //! Flag to represent the "minutes" time unit
+  MINUTE_UNIT = 1 << 1,
+  //! Flag to represent the "hours" time unit
+  HOUR_UNIT = 1 << 2,
+  //! Flag to represent the "days" time unit
+  DAY_UNIT = 1 << 3,
+  //! Flag to represent the "months" time unit
+  MONTH_UNIT = 1 << 4,
+  //! Flag to represent the "years" time unit
+  YEAR_UNIT = 1 << 5
+} TimeUnits;
 
 //! Callback type for tick timer events
 //! @param tick_time the time at which the tick event was triggered
@@ -487,10 +565,11 @@ void accel_tap_service_unsubscribe(void);
 typedef void (*TickHandler)(struct tm *tick_time, TimeUnits units_changed);
 
 //! Subscribe to the tick timer event service. Once subscribed, the handler gets called
-//! on every requested unit change. Only the last callback and settings passed will be used. 
-//! This can only be called once. 
-//! @param handler A callback to be executed on tick event
-//! @param tick_units the unit change we want to handle (seconds, minutes, hours)
+//! on every requested unit change.
+//! Calling this function multiple times will override the units and handler (i.e., only 
+//! the last tick_units and handler passed will be used).
+//! @param handler The callback to be executed on tick events
+//! @param tick_units a bitmask of all the units that have changed
 void tick_timer_service_subscribe(TimeUnits tick_units, TickHandler handler);
 
 //! Unsubscribe from the tick timer event service. Once unsubscribed, the previously registered
@@ -601,6 +680,60 @@ DataLoggingResult
 data_logging_log(DataLoggingSessionRef logging_session, const void *data, uint32_t num_items);
 
 //! @} // group DataLogging
+
+//! @addtogroup DataStructures
+//! @{
+
+//! @addtogroup UUID
+//! @{
+
+typedef struct __attribute__((__packed__)) {
+  uint8_t byte0;
+  uint8_t byte1;
+  uint8_t byte2;
+  uint8_t byte3;
+  uint8_t byte4;
+  uint8_t byte5;
+  uint8_t byte6;
+  uint8_t byte7;
+  uint8_t byte8;
+  uint8_t byte9;
+  uint8_t byte10;
+  uint8_t byte11;
+  uint8_t byte12;
+  uint8_t byte13;
+  uint8_t byte14;
+  uint8_t byte15;
+} Uuid;
+
+#define UUID_SIZE 16
+
+#define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) ((Uuid) {p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
+
+#define UuidMakeFromBEBytes(b) ((Uuid) { b[0], b[1], b[2], b[3], \
+                                         b[4], b[5], b[6], b[7], \
+                                         b[8], b[9], b[10], b[11], \
+                                         b[12], b[13], b[14], b[15] })
+
+#define UuidMakeFromLEBytes(b) ((Uuid) { b[15], b[14], b[13], b[12], \
+                                         b[11], b[10], b[9], b[8], \
+                                         b[7], b[6], b[5], b[4], \
+                                         b[3], b[2], b[1], b[0] })
+
+//! Compares two UUIDs.
+//! @return True if the two UUIDs are equal, false if they are not.
+bool uuid_equal(const Uuid *uu1, const Uuid *uu2);
+
+//! Writes UUID in a string form into buffer that looks like the following...
+//! {12345678-1234-5678-1234-567812345678}
+//! @param buffer Memory to write the string to. Must be at least UUID_STRING_BUFFER_LENGTH bytes long.
+void uuid_to_string(const Uuid *uuid, char *buffer);
+
+#define UUID_STRING_BUFFER_LENGTH (32 + 4 + 2 + 1)
+
+//! @} // group UUID
+
+//! @} // group DataStructures
 
 //! @addtogroup Logging Logging
 //!   \brief Functions related to logging from apps.
@@ -1555,10 +1688,14 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 typedef const void* ResHandle;
 
 //! Gets the resource handle for a file identifier.
-//! @param file_id The resource ID
+//! @param resource_id The resource ID
+//!
 //! The resource IDs are auto-generated by the Pebble build process, based
-//! on the `applib.json`. For example, given the following fragment of a
-//! `applib.json`:
+//! on the `appinfo.json`. The "name" field of each resource is prefixed
+//! by `RESOURCE_ID_` and made visible to the application (through the
+//! `build/src/resource_ids.auto.h` header which is automatically included).
+//!
+//! For example, given the following fragment of `appinfo.json`:
 //! \code{.json}
 //!   ...
 //!   "resources" : {
@@ -1569,11 +1706,9 @@ typedef const void* ResHandle;
 //!           "type": "png",
 //!        },
 //!    ...
-//!
 //! \endcode
-//! The "name" value gets prefixed by `RESOURCE_ID_` by the Pebble build
-//! process. So, in the example `RESOURCE_ID_MY_ICON` is the file identifier
-//! for that resource. To get a resource handle for that resource write:
+//! The generated file identifier for this resource is `RESOURCE_ID_MY_ICON`.
+//! To get a resource handle for that resource write:
 //! \code{.c}
 //! ResHandle rh = resource_get_handle(RESOURCE_ID_MY_ICON);
 //! \endcode
@@ -1594,7 +1729,7 @@ size_t resource_load(ResHandle h, uint8_t *buffer, size_t max_length);
 //! Copies a range of bytes from a resource with a given handle into a given buffer.
 //! @param h The handle to the resource
 //! @param start_offset The offset in bytes at which to start reading from the resource
-//! @param data The buffer to load the resource data into
+//! @param buffer The buffer to load the resource data into
 //! @param num_bytes The maximum number of bytes to copy
 //! @return The number of bytes actually copied
 size_t resource_load_byte_range(
@@ -1682,6 +1817,21 @@ void app_timer_cancel(AppTimer *timer_handle);
 
 //! @} // group Timer
 
+//! @addtogroup MemoryManagement Memory Management
+//!   \brief Utility functions for determining an application's memory usage.
+//!
+//! @{
+
+//! Calculates the number of bytes of heap memory \a not currently being used by the application.
+//! @return The number of bytes on the heap not currently being used.
+size_t heap_bytes_free(void);
+
+//! Calculates the number of bytes of heap memory currently being used by the application.
+//! @return The number of bytes on the heap currently being used.
+size_t heap_bytes_used(void);
+
+//! @} // group MemoryManagement
+
 //! @addtogroup Storage
 //! \brief A mechanism to store persistent application data and state
 //!
@@ -1710,6 +1860,61 @@ void app_timer_cancel(AppTimer *timer_handle);
 
 //! The maximum size of a persist string in bytes including the NULL terminator
 #define PERSIST_STRING_MAX_LENGTH PERSIST_DATA_MAX_LENGTH
+
+//! Status codes. See \ref status_t
+typedef enum StatusCode {
+  //! Operation completed successfully.
+  S_SUCCESS = 0,
+
+  //! An error occurred (no description).
+  E_ERROR = -1,
+
+  //! No idea what went wrong.
+  E_UNKNOWN = -2,
+
+  //! There was a generic internal logic error.
+  E_INTERNAL = -3,
+
+  //! The function was not called correctly.
+  E_INVALID_ARGUMENT = -4,
+
+  //! Insufficient allocatable memory available.
+  E_OUT_OF_MEMORY = -5,
+
+  //! Insufficient long-term storage available.
+  E_OUT_OF_STORAGE = -6,
+
+  //! Insufficient resources available.
+  E_OUT_OF_RESOURCES = -7,
+
+  //! Argument out of range (may be dynamic).
+  E_RANGE = -8,
+
+  //! Target of operation does not exist.
+  E_DOES_NOT_EXIST = -9,
+
+  //! Operation not allowed (may depend on state).
+  E_INVALID_OPERATION = -10,
+
+  //! Another operation prevented this one.
+  E_BUSY = -11,
+
+  //! Equivalent of boolean true.
+  S_TRUE = 1,
+
+  //! Equivalent of boolean false.
+  S_FALSE = 0,
+
+  //! For list-style requests.  At end of list.
+  S_NO_MORE_ITEMS = 2,
+
+  //! No action was taken as none was required.
+  S_NO_ACTION_REQUIRED = 3,
+
+} StatusCode;
+
+//! Return value for system operations. See \ref StatusCode for possible values.
+typedef int32_t status_t;
 
 //! Checks whether a value has been set for a given key in persistent storage.
 //! @param key The key of the field to check.
@@ -1943,7 +2148,7 @@ typedef struct __attribute__ ((__packed__)) GBitmap {
   //! Also, the following should (naturally) be true: `(row_size_bytes * 8 >= bounds.w)`
   uint16_t row_size_bytes;
 
-  //! This union is here to make it easy to copy in a full uint16_t of flags from the binary format
+  //! Private attributes used by the system.
   union {
     //! Bitfields of metadata flags.
     uint16_t info_flags;
@@ -1964,17 +2169,23 @@ typedef struct __attribute__ ((__packed__)) GBitmap {
 } GBitmap;
 
 //! Creates a new \ref GBitmap on the heap using a Pebble image file stored as a resource.
-//! The resulting GBitmap must be destroyed using gbitmap_destroy.
+//! The resulting GBitmap must be destroyed using \ref gbitmap_destroy().
 //! @param resource_id The ID of the bitmap resource to load
 //! @return A pointer to the \ref GBitmap. `NULL` if the GBitmap could not
 //! be created
 GBitmap* gbitmap_create_with_resource(uint32_t resource_id);
 
-//! Creates a new GBitmap on the heap initialized with a Pebble image file data
-//! (.pbi), as output by bitmapgen.py.
-//! @param data The Pebble image file data. Must not be NULL. The function
+//! Creates a new GBitmap on the heap initialized with the provided Pebble image data.
+//!
+//! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy() but the image
+//! data will not be freed automatically. The developer is responsible for keeping the image
+//! data in memory as long as the bitmap is used and releasing it after the bitmap is destroyed.
+//! @note One way to generate Pebble image data is to use bitmapgen.py in the Pebble
+//! SDK to generate a .pbi file.
+//! @param data The Pebble image data. Must not be NULL. The function
 //! assumes the data to be correct; there are no sanity checks performed on the
-//! data.
+//! data. The data will not be copied and the pointer must remain valid for the
+//! lifetime of this GBitmap.
 //! @return A pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not
 //! be created
 GBitmap* gbitmap_create_with_data(const uint8_t *data);
@@ -1986,6 +2197,7 @@ GBitmap* gbitmap_create_with_data(const uint8_t *data);
 //! is responsible for making sure the base bitmap will remain available when
 //! using the sub-bitmap. Note that you should not destroy the parent bitmap until
 //! the sub_bitmap has been destroyed.
+//! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy().
 //! @param[in] base_bitmap The bitmap that the sub-bitmap of which the image data
 //! will be used by the sub-bitmap
 //! @param sub_rect The rectangle within the image data of the base bitmap. The
@@ -1994,9 +2206,21 @@ GBitmap* gbitmap_create_with_data(const uint8_t *data);
 //! be created
 GBitmap* gbitmap_create_as_sub_bitmap(const GBitmap *base_bitmap, GRect sub_rect);
 
-//! Destroy a \ref GBitmap; free the \ref GBitmap's data if it is dynamically
-//! allocated.
+//! Creates a new blank GBitmap on the heap initialized to zeroes.
+//! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy().
+//! @param size The Pebble image dimensions as a \ref GSize.
+//! @return A pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not
+//! be created
+GBitmap* gbitmap_create_blank(GSize size);
+
+//! Destroy a \ref GBitmap.
 //! This must be called for every bitmap that's been created with gbitmap_create_*
+//!
+//! This function will also free the memory of the bitmap data (bitmap->addr) if the bitmap was created with \ref gbitmap_create_blank()
+//! or \ref gbitmap_create_with_resource().
+//!
+//! If the GBitmap was created with \ref gbitmap_create_with_data(), you must release the memory
+//! after calling gbitmap_destroy().
 void gbitmap_destroy(GBitmap* bitmap);
 
 //! Values to specify how two things should be aligned relative to each other.
@@ -2100,14 +2324,14 @@ typedef struct GContext GContext;
 //! The Pebble OS graphics engine, inspired by several notable graphics systems, including
 //! Apple’s Quartz 2D and its predecessor QuickDraw, provides your app with a canvas into
 //! which to draw, namely, the graphics context. A graphics context is the target into which
-//! graphics functions can paint, using Pebble drawing routines (see \ref \ref Drawing,
+//! graphics functions can paint, using Pebble drawing routines (see \ref Drawing,
 //! \ref PathDrawing and \ref TextDrawing).
 //!
 //! A graphics context holds a reference to the bitmap into which to paint. It also holds the
 //! current drawing state, like the current fill color, stroke color, clipping box, drawing box,
-//! compositing mode, and so on. The \ref GContext struct is the type representing the graphics context.
+//! compositing mode, and so on. The GContext struct is the type representing the graphics context.
 //!
-//! For drawing in your Pebble watchface or watchapp, you won't need to create a \ref GContext
+//! For drawing in your Pebble watchface or watchapp, you won't need to create a GContext
 //! yourself. In most cases, it is provided by Pebble OS as an argument passed into a render
 //! callback (the .update_proc of a Layer).
 //!
@@ -2472,17 +2696,21 @@ GSize graphics_text_layout_get_content_size(const char* text, GFont const font, 
 //! Reference to opaque click recognizer
 //! When a \ref ClickHandler callback is called, the recognizer that fired the handler is passed in.
 //! @see \ref ClickHandler
+//! @see \ref click_number_of_clicks_counted()
+//! @see \ref click_recognizer_get_button_id()
+//! @see \ref click_recognizer_is_repeating()
 typedef void *ClickRecognizerRef;
 
 //! Function signature of the callback that handles a recognized click pattern
 //! @param recognizer The click recognizer that detected a "click" pattern
-//! @param context Pointer to application specified data as configured using \ref window_set_click_config_provider_with_context()
-//! or as set manually in the \ref ClickConfigProvider callback on the `.context` field of the \ref ClickConfig.
+//! @param context Pointer to application specified data (see \ref window_set_click_config_provider_with_context() and
+//! \ref window_set_click_context()). This defaults to the window.
 //! @see \ref ClickConfigProvider
 typedef void (*ClickHandler)(ClickRecognizerRef recognizer, void *context);
 
-//! This callback gets called at times that a click recognizer has to be set up, for example
-//! when a new window comes into view.
+//! This callback is called every time the window becomes visible (and when you call \ref window_set_click_config_provider() if
+//! the window is already visible).
+//!
 //! Subscribe to click events using
 //!   \ref window_single_click_subscribe()
 //!   \ref window_single_repeating_click_subscribe()
@@ -2490,8 +2718,7 @@ typedef void (*ClickHandler)(ClickRecognizerRef recognizer, void *context);
 //!   \ref window_long_click_subscribe()
 //!   \ref window_raw_click_subscribe()
 //! These subscriptions will get used by the click recognizers of each of the 4 buttons.
-//! @see ButtonId for the mapping buttons to the array indices.
-//! @param context Pointer to application specific data, as configured using \ref window_set_click_config_provider_with_context(), or defaults to the window if registered with \ref window_set_click_config_provider().
+//! @param context Pointer to application specific data (see \ref window_set_click_config_provider_with_context()).
 typedef void (*ClickConfigProvider)(void *context);
 
 //! Gets the click count.
@@ -2506,6 +2733,12 @@ uint8_t click_number_of_clicks_counted(ClickRecognizerRef recognizer);
 //! @param recognizer The click recognizer for which to get the button id that caused the click event
 //! @return the ButtonId of the click recognizer
 ButtonId click_recognizer_get_button_id(ClickRecognizerRef recognizer);
+
+//! Is this a repeating click.
+//! You can use this inside a click handler implementation to find out whether this is a repeating click or not.
+//! @param recognizer The click recognizer for which to find out wheter this is a repeating click.
+//! @return true if this is a repeating click.
+bool click_recognizer_is_repeating(ClickRecognizerRef recognizer);
 
 //! @} // group Clicks
 
@@ -2813,7 +3046,7 @@ void window_set_click_config_provider(Window *window, ClickConfigProvider click_
 //! (instead of the window pointer) that will be passed into the ClickHandler click event handlers.
 //! @param window The window for which to set the click config provider
 //! @param click_config_provider The callback that will be called to configure the click recognizers with the window
-//! @param context Pointer to application specific data that will be passed to the click configuration provider callback.
+//! @param context Pointer to application specific data that will be passed to the click configuration provider callback (defaults to the window).
 //! @see Clicks
 //! @see window_set_click_config_provider
 void window_set_click_config_provider_with_context(Window *window, ClickConfigProvider click_config_provider, void *context);
@@ -2879,6 +3112,7 @@ bool window_is_loaded(Window *window);
 //! provide a means to access the data at later times in one of the window event handlers.
 //! @see window_get_user_data
 //! @param window The window for which to set the user data
+//! @param data A pointer to user data.
 void window_set_user_data(Window *window, void *data);
 
 //! Gets the pointer to developer-supplied data that was previously
@@ -2887,14 +3121,12 @@ void window_set_user_data(Window *window, void *data);
 //! @param window The window for which to get the user data
 void* window_get_user_data(const Window *window);
 
-//! Subscribe to single click events. A single click is detected every time "repeat_interval_ms" has been reached.
-//! @note Must be called from within the \ref ClickConfigProvider.
+//! Subscribe to single click events.
+//! @note Must be called from the \ref ClickConfigProvider.
 //! @note \ref window_single_click_subscribe() and \ref window_single_repeating_click_subscribe() conflict, and cannot both be used on the same button.
+//! @note When there is a multi_click and/or long_click setup, there will be a delay before the single click
 //! @param button_id The button events to subscribe to.
-//! @param context Optional pointer to application specific data that will be passed into the handler.
-//! A value of 0ms means "no repeat timer". The minimum is 30ms, and values below will be disregarded.
 //! @param handler The \ref ClickHandler to fire on this event.
-//! @note When there is a multi_click and/or long_click setup, there will be a delay pending before the single click
 //! handler will get fired. On the other hand, when there is no multi_click nor long_click setup, the single click handler will fire directly on button down.
 //! @see ButtonId
 //! @see Clicks
@@ -2902,28 +3134,31 @@ void* window_get_user_data(const Window *window);
 void window_single_click_subscribe(ButtonId button_id, ClickHandler handler);
 
 //! Subscribe to single click event, with a repeat interval. A single click is detected every time "repeat_interval_ms" has been reached.
-//! @note Must be called from within the \ref ClickConfigProvider.
+//! @note Must be called from the \ref ClickConfigProvider.
 //! @note \ref window_single_click_subscribe() and \ref window_single_repeating_click_subscribe() conflict, and cannot both be used on the same button.
 //! @note The back button cannot be overridden with a repeating click.
+//! @param button_id The button events to subscribe to.
 //! @param repeat_interval_ms When holding down, how many milliseconds before the handler is fired again.
-//! @note If there is a long-click handler subscribed on this button, `repeat_interval_ms` will not be used.
+//! A value of 0ms means "no repeat timer". The minimum is 30ms, and values below will be disregarded.
+//! If there is a long-click handler subscribed on this button, `repeat_interval_ms` will not be used.
+//! @param handler The \ref ClickHandler to fire on this event.
 //! @see window_single_click_subscribe
 void window_single_repeating_click_subscribe(ButtonId button_id, uint16_t repeat_interval_ms, ClickHandler handler);
 
 //! Subscribe to multi click events.
-//! @note Must be called from within the \ref ClickConfigProvider.
-//! @param button_id The button events to subscribe to. @see ButtonId.
-//! @param min Minimum number of clicks before handler is fired. Defaults to 2.
-//! @param max Maximum number of clicks after which the click counter is reset. A value of 0 means use "min" also as "max".
+//! @note Must be called from the \ref ClickConfigProvider.
+//! @param button_id The button events to subscribe to.
+//! @param min_clicks Minimum number of clicks before handler is fired. Defaults to 2.
+//! @param max_clicks Maximum number of clicks after which the click counter is reset. A value of 0 means use "min" also as "max".
 //! @param timeout The delay after which a sequence of clicks is considered finished, and the click counter is reset. A value of 0 means to use the system default 300ms.
 //! @param last_click_only Defaults to false. When true, only the handler for the last multi-click is called.
 //! @param handler The \ref ClickHandler to fire on this event. Fired for multi-clicks, as "filtered" by the `last_click_only`, `min`, and `max` parameters.
 void window_multi_click_subscribe(ButtonId button_id, uint8_t min_clicks, uint8_t max_clicks, uint16_t timeout, bool last_click_only, ClickHandler handler);
 
 //! Subscribe to long click events.
-//! @note Must be called from within the \ref ClickConfigProvider.
+//! @note Must be called from the \ref ClickConfigProvider.
 //! @note The back button cannot be overridden with a long click.
-//! @param button_id The button events to subscribe to. @see ButtonId.
+//! @param button_id The button events to subscribe to.
 //! @param delay_ms Milliseconds after which "handler" is fired. A value of 0 means to use the system default 500ms.
 //! @param down_handler The \ref ClickHandler to fire as soon as the button has been held for `delay_ms`. This may be NULL to have no down handler.
 //! @param up_handler The \ref ClickHandler to fire on the release of a long click. This may be NULL to have no up handler.
@@ -2932,16 +3167,17 @@ void window_long_click_subscribe(ButtonId button_id, uint16_t delay_ms, ClickHan
 //! Subscribe to raw click events.
 //! @note Must be called from within the \ref ClickConfigProvider.
 //! @note The back button cannot be overridden with a raw click.
-//! @param button_id The button events to subscribe to. @see ButtonId.
+//! @param button_id The button events to subscribe to.
 //! @param down_handler The \ref ClickHandler to fire as soon as the button has been pressed. This may be NULL to have no down handler.
 //! @param up_handler The \ref ClickHandler to fire on the release of the button. This may be NULL to have no up handler.
 //! @param context If this context is not NULL, it will override the general context.
 void window_raw_click_subscribe(ButtonId button_id, ClickHandler down_handler, ClickHandler up_handler, void *context);
 
-//! Set the context that will be passed to handlers for the given button's events.
+//! Set the context that will be passed to handlers for the given button's events. By default the context passed to handlers
+//! is equal to the \ref ClickConfigProvider context (defaults to the window).
 //! @note Must be called from within the \ref ClickConfigProvider.
 //! @param button_id The button to set the context for.
-//! @param context Pointer to data that will be passed as context.
+//! @param context Set the context that will be passed to handlers for the given button's events.
 void window_set_click_context(ButtonId button_id, void *context);
 
 //! @} // group Window
@@ -3343,10 +3579,9 @@ typedef struct PropertyAnimation {
 //! It sets up the PropertyAnimation to use \ref layer_set_frame() and \ref layer_get_frame()
 //! as accessors and uses the `layer` parameter as the subject for the animation.
 //! The same defaults are used as with \ref animation_create().
-//! @param property_animation The property animation to initialize and set up
 //! @param layer the layer that will be animated
-//! @param to_frame the frame that the layer should animate to
 //! @param from_frame the frame that the layer should animate from
+//! @param to_frame the frame that the layer should animate to
 //! @note Pass in `NULL` as one of the frame arguments to have it set automatically to the layer's current frame.
 //! This will result in a call to \ref layer_get_frame() to get the current frame of the layer.
 //! @return A pointer to the property animation. `NULL` if animation could not
@@ -4296,7 +4531,6 @@ typedef struct {
 
 //! Creates a new SimpleMenuLayer on the heap and initializes it.
 //! It also sets the internal click configuration provider onto given window.
-//! @param simple_menu Pointer to the SimpleMenuLayer to initialize
 //! @param frame The frame at which to initialize the menu
 //! @param window The window onto which to set the click configuration provider
 //! @param sections Array with sections that need to be displayed in the menu
@@ -4476,7 +4710,6 @@ void action_bar_layer_set_click_config_provider(ActionBarLayer *action_bar, Clic
 //! @param button_id The identifier of the button for which to set the icon
 //! @param icon Pointer to the \ref GBitmap icon
 //! @see action_bar_layer_set_click_config_provider()
-//! @see \ref MediaUtils
 void action_bar_layer_set_icon(ActionBarLayer *action_bar, ButtonId button_id, const GBitmap *icon);
 
 //! Convenience function to clear out an existing icon.
@@ -4579,7 +4812,6 @@ const GBitmap* bitmap_layer_get_bitmap(BitmapLayer *bitmap_layer);
 //! The bitmap layer is automatically marked dirty after this operation.
 //! @param bitmap_layer The BitmapLayer for which to set the bitmap image
 //! @param bitmap The new \ref GBitmap to set onto the BitmapLayer
-//! @see See \ref MediaUtils for utilities to help with resource loading and bitmap handling.
 void bitmap_layer_set_bitmap(BitmapLayer *bitmap_layer, const GBitmap *bitmap);
 
 //! Sets the alignment of the image to draw with in frame of the BitmapLayer.
@@ -4618,28 +4850,77 @@ void bitmap_layer_set_compositing_mode(BitmapLayer *bitmap_layer, GCompOp mode);
 //! @} // group BitmapLayer
 
 //! @addtogroup RotBitmapLayer
+//! \brief Layer that displays a rotated bitmap image.
+//!
+//! A RotBitmapLayer is like a \ref BitmapLayer but has the ability to be rotated (by default, around its center). The amount of rotation
+//! is specified using \ref rot_bitmap_layer_set_angle() or \ref rot_bitmap_layer_increment_angle(). The rotation argument
+//! to those functions is specified as an amount of clockwise rotation, where the value 0x10000 represents a full 360 degree
+//! rotation and 0 represent no rotation, and it scales linearly between those values, just like \ref sin_lookup.
+//!
+//! The center of rotation in the source bitmap is always placed at the center of the RotBitmapLayer and the size of the RotBitmapLayer
+//! is automatically calculated so that the entire Bitmap can fit in at all rotation angles.
+//!
+//! For example, if the image is 10px wide and high, the RotBitmapLayer will be 14px wide ( sqrt(10^2+10^2) ).
+//!
+//! By default, the center of rotation in the source bitmap is the center of the bitmap but you can call \ref rot_bitmap_set_src_ic() to change the
+//! center of rotation.
+//!
 //! @{
 
 struct RotBitmapLayer;
 typedef struct RotBitmapLayer RotBitmapLayer;
 
+//! Creates a new RotBitmapLayer on the heap and initializes it with the default values:
+//!  * Angle: 0
+//!  * Compositing mode: \ref GCompOpAssign
+//!  * Corner clip color: \ref GColorClear
+//!
+//! @param bitmap The bitmap to display in this RotBitmapLayer
 //! @return A pointer to the RotBitmapLayer. `NULL` if the RotBitmapLayer could not
 //! be created
 RotBitmapLayer* rot_bitmap_layer_create(GBitmap *bitmap);
 
+//! Destroys a RotBitmapLayer and frees all associated memory.
+//! @note It is the developer responsibility to free the \ref GBitmap.
+//! @param bitmap The RotBitmapLayer to destroy.
 void rot_bitmap_layer_destroy(RotBitmapLayer *bitmap);
 
-void rot_bitmap_layer_set_corner_clip_color(RotBitmapLayer *image, GColor color);
+//! Defines what color to use in areas that are not covered by the source bitmap.
+//! By default this is \ref GColorClear.
+//! @param bitmap The RotBitmapLayer on which to change the corner clip color
+//! @param color The corner clip color
+void rot_bitmap_layer_set_corner_clip_color(RotBitmapLayer *bitmap, GColor color);
 
-//! sets rotation to the given angle
-void rot_bitmap_layer_set_angle(RotBitmapLayer *image, int32_t angle);
+//! Sets the rotation angle of this RotBitmapLayer
+//! @param bitmap The RotBitmapLayer on which to change the rotation
+//! @param angle Rotation is an integer between 0 (no rotation) and 0x10000 (360 degree rotation). @see sin_lookup()
+void rot_bitmap_layer_set_angle(RotBitmapLayer *bitmap, int32_t angle);
 
-//! changes the rotation by the given amount
-void rot_bitmap_layer_increment_angle(RotBitmapLayer *image, int32_t angle_change);
+//! Change the rotation angle of this RotBitmapLayer
+//! @param bitmap The RotBitmapLayer on which to change the rotation
+//! @param angle_change The rotation angle change
+void rot_bitmap_layer_increment_angle(RotBitmapLayer *bitmap, int32_t angle_change);
 
-void rot_bitmap_set_src_ic(RotBitmapLayer *image, GPoint ic);
+//! Defines the only point that will not be affected by the rotation in the source bitmap.
+//!
+//! For example, if you pass GPoint(0, 0), the image will rotate around the top-left corner.
+//!
+//! This point is always projected at the center of the RotBitmapLayer. Calling this function
+//! automatically adjusts the width and height of the RotBitmapLayer so that
+//! the entire bitmap can fit inside the layer at all rotation angles.
+//!
+//! @param bitmap The RotBitmapLayer on which to change the rotation
+//! @param ic The only point in the original image that will not be affected by the rotation.
+void rot_bitmap_set_src_ic(RotBitmapLayer *bitmap, GPoint ic);
 
-void rot_bitmap_set_compositing_mode(RotBitmapLayer *image, GCompOp mode);
+//! Sets the compositing mode of how the bitmap image is composited onto what has been drawn beneath the
+//! RotBitmapLayer.
+//! By default this is \ref GCompOpAssign.
+//! The RotBitmapLayer is automatically marked dirty after this operation.
+//! @param bitmap The RotBitmapLayer on which to change the rotation
+//! @param mode The compositing mode to set
+//! @see \ref GCompOp for visual examples of the different compositing modes.
+void rot_bitmap_set_compositing_mode(RotBitmapLayer *bitmap, GCompOp mode);
 
 //! @} // group RotBitmapLayer
 
@@ -4723,6 +5004,11 @@ void number_window_set_step_size(NumberWindow *numberwindow, int32_t step);
 //! value
 //! @return The current value
 int32_t number_window_get_value(const NumberWindow *numberwindow);
+
+//! Gets the "root" Window of the number window
+//! @param numberwindow Pointer to the NumberWindow for which to get the "root" Window
+//! @return The "root" Window of the number window.
+Window *number_window_get_window(NumberWindow *numberwindow);
 
 //! @} // group NumberWindow
 

@@ -1,6 +1,6 @@
 /*
 
-Linked List v0.2.3
+Linked List v0.3
 A Pebble library for working with linked lists.
 http://smallstoneapps.github.io/linked-list/
 
@@ -34,9 +34,11 @@ tests/linked-list.c
 
 */
 
-#include "unit.h"
 #include <pebble.h>
+#include "unit.h"
 #include "../src/linked-list.h"
+
+#define VERSION_LABEL "0.3"
 
 // Colour code definitions to make the output all pretty.
 #define KNRM  "\x1B[0m"
@@ -51,7 +53,6 @@ tests/linked-list.c
 // Keep track of how many tests have run, and how many have passed.
 int tests_run = 0;
 int tests_passed = 0;
-const int NUM_TESTS = 25;
 
 typedef struct Object {
   uint8_t id;
@@ -61,7 +62,6 @@ LinkedRoot* root = NULL;
 
 static void before_each(void) {
   root = linked_list_create_root();
-  // persist_clear();
 }
 
 static void after_each(void) {
@@ -80,13 +80,6 @@ static uint8_t get_id(void* obj) {
 static bool object_compare(void* obj1, void* obj2) {
   return ((Object*)obj1)->id == ((Object*)obj2)->id;
 }
-
-/*static char* test_exists_fail(void) {
-  bool pass = (false == persist_exists(0));
-  mu_assert(pass, "Something exists when it shouldn't.");
-  return 0;
-}
-*/
 
 static char* count_empty(void) {
   mu_assert(0 == linked_list_count(root), "List is not empty.");
@@ -308,17 +301,19 @@ static char* all_tests(void) {
   return 0;
 }
 
+// Test application entry point.
+// Executes all the tests and prints the results in pretty colours.
 int main(int argc, char **argv) {
-  printf("%s-------------------------\n", KCYN);
-  printf("Running Linked List Tests\n");
-  printf("-------------------------\n%s", KNRM);
+  printf("%s---------------------------------\n", KCYN);
+  printf("| Running Linked List %s Tests |\n", VERSION_LABEL);
+  printf("---------------------------------\n%s", KNRM);
   char* result = all_tests();
   if (0 != result) {
-    printf("%sFailed Test:%s %s\n", KRED, KNRM, result);
+    printf("%s- Failed Test:%s %s\n", KRED, KNRM, result);
   }
-  printf("Tests Run: %s%d / %d%s\n", (tests_run >= NUM_TESTS) ? KGRN : KRED, tests_run, NUM_TESTS, KNRM);
-  printf("Tests Passed: %s%d / %d%s\n", (tests_passed >= NUM_TESTS) ? KGRN : KRED, tests_passed, NUM_TESTS, KNRM);
+  printf("- Tests Run: %s%d%s\n", (tests_run == tests_passed) ? KGRN : KRED, tests_run, KNRM);
+  printf("- Tests Passed: %s%d%s\n", (tests_run == tests_passed) ? KGRN : KRED, tests_passed, KNRM);
 
-  printf("%s----------------------------%s\n", KCYN, KNRM);
+  printf("%s---------------------------------%s\n", KCYN, KNRM);
   return result != 0;
 }
