@@ -1,6 +1,6 @@
 /*
 
-Linked List v0.2.0
+Linked List v0.2.3
 A Pebble library for working with linked lists.
 http://smallstoneapps.github.io/linked-list/
 
@@ -49,6 +49,7 @@ struct LinkedList {
 
 static LinkedList* create_list_item(void* object);
 static LinkedList* list_get(LinkedRoot* root, uint16_t index);
+static bool pointer_compare(void* p1, void* p2);
 
 LinkedRoot* linked_list_create_root(void) {
   LinkedRoot* root = malloc(sizeof(LinkedRoot));
@@ -156,27 +157,15 @@ void linked_list_clear(LinkedRoot* root) {
 }
 
 bool linked_list_contains(LinkedRoot* root, void* object) {
-  LinkedList* list = root->head;
-  while (list != NULL) {
-    if (object == list->object) {
-      return true;
-    }
-    list = list->next;
-  }
-  return false;
+  return linked_list_contains_compare(root, object, pointer_compare);
+}
+
+bool linked_list_contains_compare(LinkedRoot* root, void* object, ObjectCompare compare) {
+  return linked_list_find_compare(root, object, compare) >= 0;
 }
 
 int16_t linked_list_find(LinkedRoot* root, void* object) {
-  int16_t index = 0;
-  LinkedList* list = root->head;
-  while (list != NULL) {
-    if (object == list->object) {
-      return index;
-    }
-    list = list->next;
-    index += 1;
-  }
-  return -1;
+  return linked_list_find_compare(root, object, pointer_compare);
 }
 
 int16_t linked_list_find_compare(LinkedRoot* root, void* object, ObjectCompare compare) {
@@ -215,3 +204,6 @@ static LinkedList* list_get(LinkedRoot* root, uint16_t index) {
   return NULL;
 }
 
+static bool pointer_compare(void* p1, void* p2) {
+  return p1 == p2;
+}

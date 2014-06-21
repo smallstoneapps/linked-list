@@ -1,6 +1,6 @@
 /*
 
-Linked List v0.2.0
+Linked List v0.2.3
 A Pebble library for working with linked lists.
 http://smallstoneapps.github.io/linked-list/
 
@@ -51,7 +51,7 @@ tests/linked-list.c
 // Keep track of how many tests have run, and how many have passed.
 int tests_run = 0;
 int tests_passed = 0;
-const int NUM_TESTS = 23;
+const int NUM_TESTS = 25;
 
 typedef struct Object {
   uint8_t id;
@@ -234,6 +234,22 @@ static char* contains_false(void) {
   return 0;
 }
 
+static char* contains_compare_true(void) {
+  Object* object1 = create_object(1);
+  Object* object2 = create_object(1);
+  linked_list_append(root, object1);
+  mu_assert(true == linked_list_contains_compare(root, object2, object_compare), "Could not find object with compare.");
+  return 0;
+}
+
+static char* contains_compare_false(void) {
+  Object* object1 = create_object(1);
+  Object* object2 = create_object(2);
+  linked_list_append(root, object1);
+  mu_assert(false == linked_list_contains_compare(root, object2, object_compare), "Found invalid object with compare.");
+  return 0;
+}
+
 static char* find_valid(void) {
   Object* object = create_object(1);
   linked_list_append(root, object);
@@ -283,6 +299,8 @@ static char* all_tests(void) {
   mu_run_test(clear_multiple);
   mu_run_test(contains_true);
   mu_run_test(contains_false);
+  mu_run_test(contains_compare_true);
+  mu_run_test(contains_compare_false);
   mu_run_test(find_valid);
   mu_run_test(find_invalid);
   mu_run_test(find_compare_valid);

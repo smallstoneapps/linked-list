@@ -1,6 +1,6 @@
 /*
 
-Linked List v0.2.0
+Linked List v0.2.3
 A Pebble library for working with linked lists.
 http://smallstoneapps.github.io/linked-list/
 
@@ -51,5 +51,6 @@ void* linked_list_get(LinkedRoot* root, uint16_t index);
 void linked_list_remove(LinkedRoot* root, uint16_t index);
 void linked_list_clear(LinkedRoot* root);
 bool linked_list_contains(LinkedRoot* root, void* object);
+bool linked_list_contains_compare(LinkedRoot* root, void* object, ObjectCompare compare);
 int16_t linked_list_find(LinkedRoot* root, void* object);
 int16_t linked_list_find_compare(LinkedRoot* root, void* object, ObjectCompare compare);
