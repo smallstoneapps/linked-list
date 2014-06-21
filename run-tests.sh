@@ -1,4 +1,4 @@
-# Linked List v0.0.1
+# Linked List v0.2.0
 # A Pebble library for working with linked lists.
 # http://smallstoneapps.github.io/linked-list/
 

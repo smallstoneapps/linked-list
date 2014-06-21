@@ -1,6 +1,6 @@
 /*
 
-Linked List v0.0.1
+Linked List v0.2.0
 A Pebble library for working with linked lists.
 http://smallstoneapps.github.io/linked-list/
 
@@ -40,6 +40,7 @@ src/linked-list.h
 
 typedef struct LinkedList LinkedList;
 typedef struct LinkedRoot LinkedRoot;
+typedef bool (*ObjectCompare)(void* object1, void* object2);
 
 LinkedRoot* linked_list_create_root(void);
 uint16_t linked_list_count(LinkedRoot* root);
@@ -49,3 +50,6 @@ void linked_list_insert(LinkedRoot* root, void* object, uint16_t after);
 void* linked_list_get(LinkedRoot* root, uint16_t index);
 void linked_list_remove(LinkedRoot* root, uint16_t index);
 void linked_list_clear(LinkedRoot* root);
+bool linked_list_contains(LinkedRoot* root, void* object);
+int16_t linked_list_find(LinkedRoot* root, void* object);
+int16_t linked_list_find_compare(LinkedRoot* root, void* object, ObjectCompare compare);

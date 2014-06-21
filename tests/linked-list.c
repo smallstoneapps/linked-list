@@ -1,6 +1,6 @@
 /*
 
-Linked List v0.0.1
+Linked List v0.2.0
 A Pebble library for working with linked lists.
 http://smallstoneapps.github.io/linked-list/
 
@@ -51,7 +51,7 @@ tests/linked-list.c
 // Keep track of how many tests have run, and how many have passed.
 int tests_run = 0;
 int tests_passed = 0;
-const int NUM_TESTS = 17;
+const int NUM_TESTS = 23;
 
 typedef struct Object {
   uint8_t id;
@@ -75,6 +75,10 @@ static Object* create_object(uint16_t id) {
 
 static uint8_t get_id(void* obj) {
   return ((Object*)obj)->id;
+}
+
+static bool object_compare(void* obj1, void* obj2) {
+  return ((Object*)obj1)->id == ((Object*)obj2)->id;
 }
 
 /*static char* test_exists_fail(void) {
@@ -217,6 +221,48 @@ static char* clear_multiple(void) {
   return 0;
 }
 
+static char* contains_true(void) {
+  Object* object = create_object(1);
+  linked_list_append(root, object);
+  mu_assert(true == linked_list_contains(root, object), "Could not find object.");
+  return 0;
+}
+
+static char* contains_false(void) {
+  Object* object = create_object(1);
+  mu_assert(false == linked_list_contains(root, object), "Found object that it should not.");
+  return 0;
+}
+
+static char* find_valid(void) {
+  Object* object = create_object(1);
+  linked_list_append(root, object);
+  mu_assert(0 == linked_list_find(root, object), "Could not find object index.");
+  return 0;
+}
+
+static char* find_invalid(void) {
+  Object* object = create_object(1);
+  mu_assert(-1 == linked_list_find(root, object), "Found index for unknown object.");
+  return 0;
+}
+
+static char* find_compare_valid(void) {
+  Object* object1 = create_object(1);
+  Object* object2 = create_object(1);
+  linked_list_append(root, object1);
+  mu_assert(0 == linked_list_find_compare(root, object2, object_compare), "Could not find object index by comparison.");
+  return 0;
+}
+
+static char* find_compare_invalid(void) {
+  Object* object1 = create_object(1);
+  Object* object2 = create_object(2);
+  linked_list_append(root, object1);
+  mu_assert(-1 == linked_list_find_compare(root, object2, object_compare), "Found incorrect object index by comparison.");
+  return 0;
+}
+
 static char* all_tests(void) {
   mu_run_test(count_empty);
   mu_run_test(get_invalid_index);
@@ -235,6 +281,12 @@ static char* all_tests(void) {
   mu_run_test(clear_empty);
   mu_run_test(clear_single);
   mu_run_test(clear_multiple);
+  mu_run_test(contains_true);
+  mu_run_test(contains_false);
+  mu_run_test(find_valid);
+  mu_run_test(find_invalid);
+  mu_run_test(find_compare_valid);
+  mu_run_test(find_compare_invalid);
   return 0;
 }
 
