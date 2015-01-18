@@ -12,12 +12,13 @@
 
 #define PBL_APP_INFO_SIMPLE PBL_APP_INFO
 
+#include <locale.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
-#include <time.h>
 #include <string.h>
+#include <time.h>
 
 #include "pebble_warn_unsupported_functions.h"
 
@@ -168,6 +169,71 @@ typedef enum {
 //! @addtogroup Foundation
 //! @{
 
+//! @addtogroup Internationalization
+//! \brief Internationalization & Localization APIs
+//!
+//! @{
+
+//! Get the ISO locale name for the language currently set on the watch
+//! @return A string containing the ISO locale name (e.g. "fr", "en_US", ...)
+//! @note It is possible for the locale to change while your app is running.
+//! And thus, two calls to i18n_get_system_locale may return different values.
+const char *i18n_get_system_locale(void);
+
+//! @} // group Internationalization
+
+//! @addtogroup WatchInfo
+//! \brief Provides information about the watch itself.
+//!
+//! This API provides access to information such as the watch model, watch color
+//! and watch firmware version.
+//! @{
+
+//! The different watch models.
+typedef enum {
+  WATCH_INFO_MODEL_UNKNOWN, //!< Unknown model
+  WATCH_INFO_MODEL_PEBBLE_ORIGINAL, //!< Original Pebble
+  WATCH_INFO_MODEL_PEBBLE_STEEL //!< Pebble Steel
+} WatchInfoModel;
+
+//! The different watch colors.
+typedef enum {
+  WATCH_INFO_COLOR_UNKNOWN = 0, //!< Unknown color
+  WATCH_INFO_COLOR_BLACK = 1, //!< Black
+  WATCH_INFO_COLOR_WHITE = 2, //!< White
+  WATCH_INFO_COLOR_RED = 3, //!< Red
+  WATCH_INFO_COLOR_ORANGE = 4, //!< Orange
+  WATCH_INFO_COLOR_GREY = 5, //!< Grey
+  WATCH_INFO_COLOR_STAINLESS_STEEL = 6, //!< Stainless Steel
+  WATCH_INFO_COLOR_MATTE_BLACK = 7, //!< Matte Black
+  WATCH_INFO_COLOR_BLUE = 8, //!< Blue
+  WATCH_INFO_COLOR_GREEN = 9, //!< Green
+  WATCH_INFO_COLOR_PINK = 10 //!< Pink
+} WatchInfoColor;
+
+//! Data structure containing the version of the firmware running on the watch.
+//! The version of the firmware has the form X.[X.[X]]. If a version number is not present it will be 0.
+//! For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are 2, 4, and 0.
+typedef struct {
+  uint8_t major; //!< Major version number
+  uint8_t minor; //!< Minor version number
+  uint8_t patch; //!< Patch version number
+} WatchInfoVersion;
+
+//! Provides the model of the watch.
+//! @return {@link WatchInfoModel} representing the model of the watch.
+WatchInfoModel watch_info_get_model(void);
+
+//! Provides the version of the firmware running on the watch.
+//! @return {@link WatchInfoVersion} representing the version of the firmware running on the watch.
+WatchInfoVersion watch_info_get_firmware_version(void);
+
+//! Provides the color of the watch.
+//! @return {@link WatchInfoColor} representing the color of the watch.
+WatchInfoColor watch_info_get_color(void);
+
+//! @} // group WatchInfo
+
 //! @addtogroup Math
 //! @{
 
@@ -204,6 +270,18 @@ int32_t atan2_lookup(int16_t y, int16_t x);
 //! dates and times.
 //! @{
 
+//! Weekday values
+typedef enum {
+  TODAY = 0,  //!< Today
+  SUNDAY,     //!< Sunday
+  MONDAY,     //!< Monday
+  TUESDAY,    //!< Tuesday
+  WEDNESDAY,  //!< Wednesday
+  THURSDAY,   //!< Thursday
+  FRIDAY,     //!< Friday
+  SATURDAY,   //!< Saturday
+} WeekDay;
+
 //! Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
 //! time).
 //! Example results: "7:30" or "15:00". 
@@ -216,6 +294,23 @@ void clock_copy_time_string(char *buffer, uint8_t size);
 //! @return `true` if the user prefers 24h-style time display or `false` if the
 //! user prefers 12h-style time display.
 bool clock_is_24h_style(void);
+
+//! Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future
+//! Always returns a timestamp for the next occurring instance,
+//! example: specifying TODAY@14:30 when it is 14:40 will return a timestamp for 7 days from
+//! now at 14:30
+//! @note This function does not support Daylight Saving Time (DST) changes, events scheduled
+//! during a DST change will be off by an hour.
+//! @param day WeekDay day of week including support for specifying TODAY
+//! @param hour hour specified in 24-hour format [0-23]
+//! @param minute minute [0-59]
+time_t clock_to_timestamp(WeekDay day, int hour, int minute);
+
+//! Checks if timezone is currently set, otherwise gmtime == localtime.
+//! @note This function was added in preparation of timezone support, 
+//! currently always returns false
+//! @return `true` if timezone has been set, false otherwise
+bool clock_is_timezone_set(void);
 
 //! @} // group WallTime
 
@@ -444,16 +539,72 @@ void accel_raw_data_service_subscribe(uint32_t samples_per_update, AccelRawDataH
 
 //! @addtogroup CompassService
 //!
-//! \brief Using the Pebble compass
+//! \brief The Compass Service combines information from Pebble's accelerometer and magnetometer to automatically calibrate
+//! the compass and transform the raw magnetic field information into a \ref CompassHeading, that is an angle to north.
 //!
+//! The Compass Service provides magnetic north and information about its status and accuracy through the \ref
+//! CompassHeadingData structure. The API is designed to also provide true north in a future release.
 //!
-//! For available code samples, see
-//! Examples/watchapps/feature_compass
+//! #### Calibration
+//! The Compass Service requires an initial calibration before it can return accurate results. Calibration is
+//! performed automatically by the system when required.
+//! The `compass_status` field indicates whether the Compass Service is calibrating.
+//! To help the calibration process, your application should
+//! show a message to the user asking them to move their wrists in different directions.
+//!
+//! Refer to the compass examples for suggestions on how to implement this screen.
+//!
+//! #### Magnetic North and True North
+//!
+//! Depending on your location on earth, the measured heading towards magnetic north and
+//! true north can significantly differ. This is called magnetic variation or declination.
+//!
+//! Pebble does not currently automatically correct the magnetic heading to return a true heading, but the API is designed so that
+//! this feature can be added in the future and your applications will be able to automatically take advantage of it:
+//!
+//!  * If you need a precise heading in your application, we recommend that you use the `magnetic_heading` field and
+//! use a webservice to retrieve the declination at your current location.
+//!
+//!  * If you choose to not correct the heading yourself, we recommend that you use the `true_heading` field. This field will contain
+//! the magnetic heading if declination is not available, or the true heading if declination is available. The field
+//! `is_declination_valid` will be true when declination is available. You can use this information to tell the user whether
+//! you are showing magnetic north or true north.
+//!
+//! #### Battery Considerations
+//! Using the compass will turn on both Pebble's magnetometer and accelerometer. Those two devices will have a slight
+//! impact on battery life. A much more significant battery impact will be caused by redrawing the screen too often or
+//! performing CPU-intensive work every time the compass heading is updated.
+//!
+//! We recommend that you follow the following best practices to optimize for battery life:
+//!
+//! * If your application is already rapidly redrawing the display, use \ref compass_service_peek() to get the most recent
+//! available heading when drawing each frame.
+//! * If your UI updates only when the heading changes, use \ref compass_service_subscribe() and set an appropriate filter to reduce
+//! the number of events.
+//! * If you use \ref compass_service_subscribe() and then do not require the compass heading anymore, remember to call
+//! \ref compass_service_unsubscribe() to stop the Compass Service.
+//! * Finally, note that every time you use \ref compass_service_peek(), the Compass Service will turn on and stay
+//! active for a few seconds.
+//!
+//! #### Defining "up" on Pebble
+//! Compass readings are always relative to the current orientation of Pebble. Using the accelerometer, the
+//! Compass Service figures out what is the direction that the user is pointing at.
+//!
+//! If Pebble is held flat, the compass heading will be the angle between a vector to north and a vector going
+//! from the bottom to the top of Pebble in a plane parallel to the screen (the Y axis vector of the accelerometer).
+//! If the user lifts their arm so that Pebble is held vertical in front of them, compass heading will be relative to a vector
+//! going through Pebble (opposite to the Z axis vector of the accelerometer). If the user keeps bringing their arm up,
+//! effectively holding the Pebble upside down, the compass heading will be relative to a line from the top to the
+//! bottom of Pebble, in the plane of the screen (opposite to the Y axis vector of the accelerometer).
+//!
+//! #### Code Samples
+//! For available code samples, see `Examples/watchapps/feature_compass`.
 //! @{
 
+//! Converts from a fixed point value representation of trig_angle to the equivalent value in degrees
 #define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
 
-//! Structure containing 3-axis magnetometer data
+
 typedef struct __attribute__((__packed__)) {
  //! magnetic field along the x axis
  int16_t x;
@@ -463,10 +614,14 @@ typedef struct __attribute__((__packed__)) {
  int16_t z;
 } MagData;
 
+//! Enum describing the current state of the Compass Service calibration
 typedef enum {
-  CompassStatusDataInvalid = 0, // data is invalid
-  CompassStatusCalibrating,     // data valid but being refined
-  CompassStatusCalibrated       // data valid & refinement complete
+  //! Compass is calibrating: data is invalid and should not be used
+  CompassStatusDataInvalid = 0,
+  //! Compass is calibrating: the data is valid but the calibration is still being refined
+  CompassStatusCalibrating,
+  //! Compass data is valid and the calibration has completed
+  CompassStatusCalibrated
 } CompassStatus;
 
 //! Represents an angle relative to a reference direction, e.g. (magnetic) north.
@@ -474,28 +629,16 @@ typedef enum {
 //! Thus, if heading towards north, north is 0, east is TRIG_MAX_ANGLE/4, south is TRIG_MAX_ANGLE/2, and so on.
 typedef int32_t CompassHeading;
 
-//! Structure containing a single heading towards magnetic or true north.
-//!
-//! The API will try to convert all measured values to true north.
-//! But please note that depending on user permissions, GPS availability and Bluetooth connection
-//! the API might only be able to return the heading towards magnetic north (see is_true_north).
-//!
-//! Depending on your location on earth, the measured heading towards magnetic north and
-//! true north can significantly differ. This is called magnetic variation or declination.
-//! When providing directions to a destination location or a reliable compass application
-//! make sure you check for is_true_north before presenting the value to the user.
-//!
-//! For available code samples, see
-//! Examples/watchapps/feature_compass_true_north
+//! Structure containing a single heading towards magnetic and true north.
 typedef struct {
   //! measured angle relative to magnetic north
   CompassHeading magnetic_heading;
-  //! measured angle relative to true north (magnetic north if declination
-  //! invalid)
+  //! measured angle relative to true north (or to magnetic north if declination
+  //! is invalid)
   CompassHeading true_heading;
-  //! indicates compass data quality information
+  //! indicates the current state of the Compass Service calibration
   CompassStatus compass_status;
-  //! true, if declination (true_heading) valid . False otherwise
+  //! true, if the current declination is known and applied to `true_heading`, false otherwise
   bool is_declination_valid;
 } CompassHeadingData;
 
@@ -503,12 +646,13 @@ typedef struct {
 //! @param heading copy of last recorded heading
 typedef void (*CompassHeadingHandler)(CompassHeadingData heading);
 
-//! Change the minimum angular change required to generate new compass heading events.
+//! Set the minimum angular change required to generate new compass heading events.
 //! The angular distance is measured relative to the last delivered heading event.
 //! Use 0 to be notified of all movements.
 //! Negative values and values > TRIG_MAX_ANGLE / 2 are not valid.
 //! The default value of this property is TRIG_MAX_ANGLE / 360.
-//! @return Non-Zero, if filter cannot be applied.
+//! @return 0, success.
+//! @return Non-Zero, if filter is invalid.
 //! @see compass_service_subscribe
 int compass_service_set_heading_filter(CompassHeading filter);
 
@@ -522,14 +666,12 @@ void compass_service_subscribe(CompassHeadingHandler handler);
 
 //! Unsubscribe from the compass heading event service. Once unsubscribed,
 //! the previously registered handler will no longer be called.
-//! Also, call this function to turn of the compass hardware after you don't call
-//! compass_service_peek() anymore.
 //! @see compass_service_subscribe
 void compass_service_unsubscribe(void);
 
 //! Peek at the last recorded reading.
 //! @param[out] data a pointer to a pre-allocated CompassHeadingData
-//! @return -1 if the magnetometer is not available
+//! @return Always returns 0 to indicate success.
 int compass_service_peek(CompassHeadingData *data);
 
 //! @} // group CompassService
@@ -710,11 +852,15 @@ typedef struct __attribute__((__packed__)) {
 
 #define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) ((Uuid) {p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
 
+//! Creates a Uuid from an array of bytes with 16 bytes in Big Endian order.
+//! @return The created Uuid
 #define UuidMakeFromBEBytes(b) ((Uuid) { b[0], b[1], b[2], b[3], \
                                          b[4], b[5], b[6], b[7], \
                                          b[8], b[9], b[10], b[11], \
                                          b[12], b[13], b[14], b[15] })
 
+//! Creates a Uuid from an array of bytes with 16 bytes in Little Endian order.
+//! @return The created Uuid
 #define UuidMakeFromLEBytes(b) ((Uuid) { b[15], b[14], b[13], b[12], \
                                          b[11], b[10], b[9], b[8], \
                                          b[7], b[6], b[5], b[4], \
@@ -726,9 +872,11 @@ bool uuid_equal(const Uuid *uu1, const Uuid *uu2);
 
 //! Writes UUID in a string form into buffer that looks like the following...
 //! {12345678-1234-5678-1234-567812345678}
-//! @param buffer Memory to write the string to. Must be at least UUID_STRING_BUFFER_LENGTH bytes long.
+//! @param uuid The Uuid to write
+//! @param buffer Memory to write the string to. Must be at least \ref UUID_STRING_BUFFER_LENGTH bytes long.
 void uuid_to_string(const Uuid *uuid, char *buffer);
 
+//! The minimum required length of a string used to hold a uuid (including null).
 #define UUID_STRING_BUFFER_LENGTH (32 + 4 + 2 + 1)
 
 //! @} // group UUID
@@ -748,16 +896,20 @@ void uuid_to_string(const Uuid *uuid, char *buffer);
 //! @{
 
 //! Log an app message.
-//! Refer the <a class="el" href="http://linux.die.net/man/3/snprintf">snprintf manpage</a> for details about the C formatting string format.
 //! @param log_level
 //! @param src_filename The source file where the log originates from
 //! @param src_line_number The line number in the source file where the log originates from
 //! @param fmt A C formatting string
 //! @param ... The arguments for the formatting string
-//! \note We do not have floating point number support in formatting strings
+//! @param log_level
+//! \sa snprintf for details about the C formatting string.
 void app_log(uint8_t log_level, const char* src_filename, int src_line_number, const char* fmt, ...)
     __attribute__((format(printf, 4, 5)));
 
+//! A helper macro that simplifies the use of the app_log function
+//! @param level The log level to log output as
+//! @param fmt A C formatting string
+//! @param args The arguments for the formatting string
 #define APP_LOG(level, fmt, args...)                                \
   app_log(level, __FILE_NAME__, __LINE__, fmt, ## args)
 
@@ -1105,12 +1257,22 @@ typedef struct Tuplet {
   }; //!< See documentation of `.bytes`, `.cstring` and `.integer` fields.
 } Tuplet;
 
+//! Macro to create a Tuplet with a byte array value
+//! @param _key The key
+//! @param _data Pointer to the bytes
+//! @param _length Length of the buffer
 #define TupletBytes(_key, _data, _length) \
 ((const Tuplet) { .type = TUPLE_BYTE_ARRAY, .key = _key, .bytes = { .data = _data, .length = _length }})
 
+//! Macro to create a Tuplet with a c-string value
+//! @param _key The key
+//! @param _cstring The c-string value
 #define TupletCString(_key, _cstring) \
 ((const Tuplet) { .type = TUPLE_CSTRING, .key = _key, .cstring = { .data = _cstring, .length = _cstring ? strlen(_cstring) + 1 : 0 }})
 
+//! Macro to create a Tuplet with an integer value
+//! @param _key The key
+//! @param _integer The integer value
 #define TupletInteger(_key, _integer) \
 ((const Tuplet) { .type = IS_SIGNED(_integer) ? TUPLE_INT : TUPLE_UINT, .key = _key, .integer = { .storage = _integer, .width = sizeof(_integer) }})
 
@@ -1685,7 +1847,9 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 
 //! Opaque reference to a resource.
 //! @see \ref resource_get_handle()
-typedef const void* ResHandle;
+typedef void * ResHandle;
+
+#define RESOURCE_ID_FONT_FALLBACK RESOURCE_ID_GOTHIC_14
 
 //! Gets the resource handle for a file identifier.
 //! @param resource_id The resource ID
@@ -1745,6 +1909,73 @@ size_t resource_load_byte_range(
 void app_event_loop(void);
 
 //! @} // group App
+
+//! @addtogroup AppWorker
+//!
+//! \brief Managing the app worker
+//!
+//! This modules contains functions for and managing the worker task, querying its status, and communicating with it
+//!
+//! @{
+
+//! Possible error codes from app_worker_launch, app_worker_kill
+typedef enum {
+  //! Success
+  APP_WORKER_RESULT_SUCCESS= 0,
+  //! No worker found for the current app
+  APP_WORKER_RESULT_NO_WORKER = 1,
+  //! A worker for a different app is already running
+  APP_WORKER_RESULT_DIFFERENT_APP = 2,
+  //! The worker is not running
+  APP_WORKER_RESULT_NOT_RUNNING = 3,
+  //! The worker is already running
+  APP_WORKER_RESULT_ALREADY_RUNNING = 4,
+  //! The user will be asked for confirmation
+  APP_WORKER_RESULT_ASKING_CONFIRMATION = 5,
+} AppWorkerResult;
+
+//! Generic structure of a worker message that can be sent between an app and its worker
+typedef struct {
+  uint16_t data0;
+  uint16_t data1;
+  uint16_t data2;
+} AppWorkerMessage;
+
+//! Determine if the worker for the current app is running
+//! @return true if running
+bool app_worker_is_running(void);
+
+//! Launch the worker for the current app. Note that this is an asynchronous operation, a result code
+//! of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
+//! @return result code
+AppWorkerResult app_worker_launch(void);
+
+//! Kill the worker for the current app. Note that this is an asynchronous operation, a result code
+//! of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
+//! @return result code
+AppWorkerResult app_worker_kill(void);
+
+//! Callback type for worker messages. Messages can be sent from worker to app or vice versa.
+//! @param type An application defined message type
+//! @param data pointer to message data. The receiver must know the structure of the data provided by the sender.
+typedef void (*AppWorkerMessageHandler)(uint16_t type, AppWorkerMessage *data);
+
+//! Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted by the other task
+//! (either worker or app).
+//! @param handler A callback to be executed when the event is received
+//! @return true on success
+bool app_worker_message_subscribe(AppWorkerMessageHandler handler);
+
+//! Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no longer be called.
+//! @return true on success
+bool app_worker_message_unsubscribe(void);
+
+//! Send a message to the other task (either worker or app).
+//! @param type An application defined message type
+//! @param data the message data structure
+void app_worker_send_message(uint8_t type, AppWorkerMessage *data);
+
+//! @} // group AppWorker
 
 //! @addtogroup AppComm App Communication
 //!   \brief API for interacting with the Pebble communication subsystem.
@@ -1991,6 +2222,97 @@ status_t persist_delete(const uint32_t key);
 
 //! @} // group Storage
 
+//! @addtogroup Wakeup
+//!   \brief The wakeup API allows applications to schedule for a wakeup event.
+//!   Wakeup events launch applications at a specified time if they are not running,
+//!   and calls the WakeupHandler callback if the application has subscribed to the service.
+//!   @note The WakeupHander callback will occur only for applications that have subscribed 
+//!   a wakeup handler and are running when a wakeup event occurs.
+//!   \ref clock_to_timestamp is provided to simplify wakeup event scheduling.
+//!
+//! @{
+
+//! WakeupId is an identifier for a wakeup event
+typedef int32_t WakeupId;
+
+//! The type of function which can be called when a wakeup event occurs.  
+//! The arguments will be the id of the wakeup event that occurred, 
+//! as well as the scheduled cookie provided to \ref app_wakeup_schedule.
+typedef void (*WakeupHandler)(WakeupId wakeup_id, int32_t cookie);
+
+//! Registers a WakeupHandler to be called when wakeup events occur.
+//! @param handler The callback that gets called when the wakeup event occurs
+void wakeup_service_subscribe(WakeupHandler handler);
+
+//! Registers a wakeup event that triggers a callback at the specified time.
+//! Applications may only schedule up to 8 wakeup events.
+//! Wakeup events are given a 1 minute duration window, in that no application may schedule a 
+//! wakeup event with 1 minute of a currently scheduled wakeup event.
+//! @param timestamp The requested time (UTC) for the wakeup event to occur
+//! @param cookie The application specific reason for the wakeup event
+//! @param notify_if_missed On powering on Pebble, will alert user when 
+//! notifications were missed due to Pebble being off.
+//! @return negative values indicate errors (StatusCode)
+//! E_RANGE if the event cannot be scheduled due to another event in that period.
+//! E_INVALID_ARGUMENT if the time requested is in the past.
+//! E_OUT_OF_RESOURCES if the application has already scheduled all 8 wakeup events.
+//! E_INTERNAL if a system error occurred during scheduling.
+WakeupId wakeup_schedule(time_t timestamp, int32_t cookie, bool notify_if_missed);
+
+//! Cancels a wakeup event.
+//! @param wakeup_id Wakeup event to cancel
+void wakeup_cancel(WakeupId wakeup_id);
+
+//! Cancels all wakeup event for the app.
+void wakeup_cancel_all(void);
+
+//! Retrieves the wakeup event info for an app that was launched
+//! by a wakeup_event (ie. \ref launch_reason() === APP_LAUNCH_WAKEUP)
+//! so that an app may display information regarding the wakeup event
+//! @param wakeup_id WakeupId for the wakeup event that caused the app to wakeup
+//! @param cookie App provided reason for the wakeup event
+//! @return True if app was launched due to a wakeup event, false otherwise
+bool wakeup_get_launch_event(WakeupId *wakeup_id, int32_t *cookie);
+
+//! Checks if the current WakeupId is still scheduled and therefore valid,
+//! @param wakeup_id Wakeup event to query for validity and scheduled time
+//! @param timestamp Time (in UTC, but local time when \ref clock_is_timezone_set
+//! returns false) that the wakeup event is scheduled to occur
+//! @return True if WakeupId is still scheduled, false if it doesn't exist or has
+//! already occurred
+bool wakeup_query(WakeupId wakeup_id, time_t *timestamp);
+
+//! @} // group Wakeup
+
+//! @addtogroup LaunchReason Launch Reason
+//!   \brief API for checking what caused the application to launch.
+//!
+//!   This includes the system, launch by user interaction (User selects the
+//!   application from the launcher menu),
+//!   launch by the mobile or a mobile companion application,
+//!   or launch by a scheduled wakeup event for the specified application.
+//!
+//! @{
+
+//! AppLaunchReason is used to inform the application about how it was launched
+//! @note New launch reasons may be added in the future. As a best practice, it
+//! is recommended to only handle the cases that the app needs to know about,
+//! rather than trying to handle all possible launch reasons.
+typedef enum {
+  APP_LAUNCH_SYSTEM = 0,  //!< App launched by the system
+  APP_LAUNCH_USER,        //!< App launched by user selection in launcher menu
+  APP_LAUNCH_PHONE,       //!< App launched by mobile or companion app
+  APP_LAUNCH_WAKEUP,      //!< App launched by wakeup event
+  APP_LAUNCH_WORKER,      //!< App launched by worker calling worker_launch_app()
+  APP_LAUNCH_QUICK_LAUNCH, //!< App launched by user using quick launch
+} AppLaunchReason;
+
+//! Provides the method used to launch the current application.
+//! @return The method or reason the current application was launched
+AppLaunchReason launch_reason(void);
+
+//! @} // group LaunchReason
+
 //! @} // group Foundation
 
 //! @addtogroup Graphics
@@ -2021,6 +2343,7 @@ typedef struct GPoint {
   int16_t y;
 } GPoint;
 
+//! Convenience macro to make a GPoint.
 #define GPoint(x, y) ((GPoint){(x), (y)})
 
 //! Convenience macro to make a GPoint at (0, 0).
@@ -2040,6 +2363,7 @@ typedef struct GSize {
   int16_t h;
 } GSize;
 
+//! Convenience macro to make a GSize.
 #define GSize(w, h) ((GSize){(w), (h)})
 
 //! Convenience macro to make a GSize of (0, 0).
@@ -2060,6 +2384,7 @@ typedef struct GRect {
   GSize size;
 } GRect;
 
+//! Convenience macro to make a GRect
 #define GRect(x, y, w, h) ((GRect){{(x), (y)}, {(w), (h)}})
 
 //! Convenience macro to make a GRect of ((0, 0), (0, 0)).
@@ -2471,6 +2796,36 @@ void graphics_draw_round_rect(GContext* ctx, GRect rect, uint16_t radius);
 //! @see GContext
 void graphics_draw_bitmap_in_rect(GContext* ctx, const GBitmap *bitmap, GRect rect);
 
+//! Captures the frame buffer for direct access.
+//! Graphics functions will not affect the frame buffer while it is captured.
+//! The frame buffer is released when {@link graphics_release_frame_buffer} is called.
+//! The frame buffer must be released before the end of a layer's `.update_proc`
+//! for the layer to be drawn properly.
+//!
+//! While the frame buffer is captured calling {@link graphics_capture_frame_buffer}
+//! will fail and return `NULL`.
+//! @see GBitmap
+//! @param ctx The graphics context providing the frame buffer
+//! @return A pointer to the frame buffer. `NULL` if failed.
+GBitmap* graphics_capture_frame_buffer(GContext* ctx);
+
+//! Releases the frame buffer.
+//! Must be called before the end of a layer's `.update_proc` for the layer to be drawn properly.
+//!
+//! If `buffer` does not point to the address previously returned by
+//! {@link graphics_capture_frame_buffer} the frame buffer will not be released.
+//! @param ctx The graphics context providing the frame buffer
+//! @param buffer The pointer to frame buffer
+//! @return True if the frame buffer was released successfully
+bool graphics_release_frame_buffer(GContext* ctx, GBitmap* buffer);
+
+//! Whether or not the frame buffer has been captured by {@link graphics_capture_frame_buffer}.
+//! Graphics functions will not affect the frame buffer until it has been released by
+//! {@link graphics_release_frame_buffer}.
+//! @param ctx The graphics context providing the frame buffer
+//! @return True if the frame buffer has been captured
+bool graphics_frame_buffer_is_captured(GContext* ctx);
+
 //! @} // group Drawing
 
 //! @addtogroup PathDrawing Drawing Paths
@@ -2609,7 +2964,7 @@ GFont fonts_get_system_font(const char *font_key);
 //! (fallback) font if the specified font cannot be loaded.
 //! @see \htmlinclude UsingResources.html on how to embed a font into your app.
 //! @note this may load a font from the flash peripheral into RAM.
-GFont fonts_load_custom_font(ResHandle resource);
+GFont fonts_load_custom_font(ResHandle handle);
 
 //! Unloads the specified custom font and frees the memory that is occupied by
 //! it.
@@ -3262,8 +3617,6 @@ bool window_stack_contains_window(Window *window);
 struct Animation;
 typedef struct Animation Animation;
 
-#define NUM_ANIMATION_CURVE 4
-
 //! Values that are used to indicate the different animation curves,
 //! which determine the speed at which the animated value(s) change(s).
 typedef enum {
@@ -3275,8 +3628,12 @@ typedef enum {
   AnimationCurveEaseOut = 2,
   //! Bicubic ease-in-out: accelerate from zero velocity, decelerate to zero velocity
   AnimationCurveEaseInOut = 3,
-  //! Number of available AnimationCurve types
-  NumAnimationCurve = NUM_ANIMATION_CURVE
+  //! Custom (user-provided) animation curve
+  AnimationCurveCustomFunction = 4,
+  //! Reserved for forward-compatibility use.
+  AnimationCurve_Reserved1 = 5,
+  AnimationCurve_Reserved2 = 6,
+  AnimationCurve_Reserved3 = 7
 } AnimationCurve;
 
 //! Creates a new Animation on the heap and initalizes it with the default values.
@@ -3300,14 +3657,14 @@ void animation_destroy(struct Animation *animation);
 //! should run indefinitely.
 //! This is useful when implementing for example a frame-by-frame simulation that does not
 //! have a clear ending (e.g. a game).
-//! @note Note that `time_normalized` parameter that is passed
+//! @note Note that `distance_normalized` parameter that is passed
 //! into the `.update` implementation is meaningless in when an infinite duration is used.
 #define ANIMATION_DURATION_INFINITE ((uint32_t) ~0)
 
-//! The normalized time at the start of the animation.
+//! The normalized distance at the start of the animation.
 #define ANIMATION_NORMALIZED_MIN 0
 
-//! The normalized time at the end of the animation.
+//! The normalized distance at the end of the animation.
 #define ANIMATION_NORMALIZED_MAX 65535
 
 //! Sets the time in milliseconds that an animation takes from start to finish.
@@ -3326,9 +3683,18 @@ void animation_set_delay(struct Animation *animation, uint32_t delay_ms);
 //! @param animation The animation for which to set the curve.
 //! @param curve The type of curve.
 //! @see AnimationCurve
-//! @note It is up to the implementation of the animation to actually use the curve.
-//! Because a curve type is often used for animations, it is included in the animation base layer.
 void animation_set_curve(struct Animation *animation, AnimationCurve curve);
+
+//! The function pointer type of a custom animation curve.
+//! @param linear_distance The linear normalized animation distance to be curved.
+//! @see animation_set_custom_curve
+typedef uint32_t (*AnimationCurveFunction)(uint32_t linear_distance);
+
+//! Sets a custom animation curve function.
+//! @param animation The animation for which to set the curve.
+//! @param curve_function The custom animation curve function.
+//! @see AnimationCurveFunction
+void animation_set_custom_curve(struct Animation *animation, AnimationCurveFunction curve_function);
 
 //! The function pointer type of the handler that will be called when an animation is started,
 //! just before updating the first frame of the animation.
@@ -3418,6 +3784,13 @@ typedef struct Animation {
   uint32_t duration_ms;
   AnimationCurve curve:3;
   bool is_completed:1;
+  //! Pointer to a custom curve. Unfortunately, due to backward-compatibility
+  //! constraints, it must fit into 28 bits.
+  //! It is only valid when curve == AnimationCurveCustomFunction.
+  //! The mapping from 28-bit field to pointer is unpublished. Call
+  //! animation_set_custom_curve() to ensure your app continues to run
+  //! after future Pebble updates.
+  uintptr_t custom_curve_function:28;
 } Animation;
 
 //! Pointer to function that (optionally) prepares the animation for running.
@@ -3427,20 +3800,27 @@ typedef struct Animation {
 //! @see AnimationTeardownImplementation
 typedef void (*AnimationSetupImplementation)(struct Animation *animation);
 
-//! Pointer to function that updates the animation according to the given normalized time.
+//! Pointer to function that updates the animation according to the given normalized distance.
 //! This callback will be called repeatedly by the animation scheduler whenever the animation needs to be updated.
 //! @param animation The animation that needs to update; gets passed in by the animation framework.
-//! @param time_normalized The current normalized time; gets passed in by the animation framework for each animation frame.
+//! @param distance_normalized The current normalized distance; gets passed in by the animation framework for each animation frame.
 //! This is a value between \ref ANIMATION_NORMALIZED_MIN and \ref ANIMATION_NORMALIZED_MAX.
 //! At the start of the animation, the value will be \ref ANIMATION_NORMALIZED_MIN.
 //! At the end of the animation, the value will be \ref ANIMATION_NORMALIZED_MAX.
-//! For each frame during the animation, the value will be the running time, mapped linearly between
-//! \ref ANIMATION_NORMALIZED_MIN and \ref ANIMATION_NORMALIZED_MAX.
-//! For example, say an animation was scheduled at t = 1.0s, has a delay of 1.0s and a duration of 2.0s.
-//! Then the .update callback will get called on t = 2.0s with time_normalized = \ref ANIMATION_NORMALIZED_MIN.
-//! For each frame thereafter until t = 4.0s, the update callback will get called where time_normalized is
+//! For each frame during the animation, the value will be the distance along the
+//! animation path, mapped between \ref ANIMATION_NORMALIZED_MIN and
+//! \ref ANIMATION_NORMALIZED_MAX based on the animation duration and the
+//! \ref AnimationCurve set.
+//! For example, say an animation was scheduled at t = 1.0s, has a delay of 1.0s,
+//! a duration of 2.0s and a curve of AnimationCurveLinear.
+//! Then the .update callback will get called on t = 2.0s with
+//! distance_normalized = \ref ANIMATION_NORMALIZED_MIN. For each frame
+//! thereafter until t = 4.0s, the update callback will get called where
+//! distance_normalized is
 //! (\ref ANIMATION_NORMALIZED_MIN + (((\ref ANIMATION_NORMALIZED_MAX - \ref ANIMATION_NORMALIZED_MIN) * t) / duration)).
-typedef void (*AnimationUpdateImplementation)(struct Animation *animation, const uint32_t time_normalized);
+//! Other animation curves will result in a non-linear relation between
+//! distance_normalized and time.
+typedef void (*AnimationUpdateImplementation)(struct Animation *animation, const uint32_t distance_normalized);
 
 //! Pointer to function that (optionally) cleans up the animation.
 //! This callback is called when the animation is removed from the scheduler.
@@ -3616,10 +3996,10 @@ void property_animation_destroy(struct PropertyAnimation* property_animation);
 //! The implementation of this function will calculate the next value of the animation and call the
 //! setter to set the new value upon the subject.
 //! @param property_animation The property animation for which the update is requested.
-//! @param time_normalized The current normalized time. See \ref AnimationUpdateImplementation
+//! @param distance_normalized The current normalized distance. See \ref AnimationUpdateImplementation
 //! @note This function is not supposed to be called "manually", but will be called automatically when the animation
 //! is being run.
-void property_animation_update_int16(struct PropertyAnimation *property_animation, const uint32_t time_normalized);
+void property_animation_update_int16(struct PropertyAnimation *property_animation, const uint32_t distance_normalized);
 
 //! Default update callback for a property animations to update a property of type GPoint.
 //! Assign this function to the `.base.update` callback field of your PropertyAnimationImplementation,
@@ -3627,10 +4007,10 @@ void property_animation_update_int16(struct PropertyAnimation *property_animatio
 //! The implementation of this function will calculate the next point of the animation and call the
 //! setter to set the new point upon the subject.
 //! @param property_animation The property animation for which the update is requested.
-//! @param time_normalized The current normalized time. See \ref AnimationUpdateImplementation
+//! @param distance_normalized The current normalized distance. See \ref AnimationUpdateImplementation
 //! @note This function is not supposed to be called "manually", but will be called automatically when the animation
 //! is being run.
-void property_animation_update_gpoint(struct PropertyAnimation *property_animation, const uint32_t time_normalized);
+void property_animation_update_gpoint(struct PropertyAnimation *property_animation, const uint32_t distance_normalized);
 
 //! Default update callback for a property animations to update a property of type GRect.
 //! Assign this function to the `.base.update` callback field of your PropertyAnimationImplementation,
@@ -3638,10 +4018,10 @@ void property_animation_update_gpoint(struct PropertyAnimation *property_animati
 //! The implementation of this function will calculate the next rectangle of the animation and call the
 //! setter to set the new rectangle upon the subject.
 //! @param property_animation The property animation for which the update is requested.
-//! @param time_normalized The current normalized time. See \ref AnimationUpdateImplementation
+//! @param distance_normalized The current normalized distance. See \ref AnimationUpdateImplementation
 //! @note This function is not supposed to be called "manually", but will be called automatically when the animation
 //! is being run.
-void property_animation_update_grect(struct PropertyAnimation *property_animation, const uint32_t time_normalized);
+void property_animation_update_grect(struct PropertyAnimation *property_animation, const uint32_t distance_normalized);
 
 //! Work-around for function pointer return type GPoint avoid
 //! tripping the pre-processor to use the equally named GPoint define
@@ -4152,6 +4532,7 @@ typedef struct MenuIndex {
   uint16_t row;
 } MenuIndex;
 
+//! Macro to create a MenuIndex
 #define MenuIndex(section, row) ((MenuIndex){ (section), (row) })
 
 //! Comparator function to determine the order of two MenuIndex values.
@@ -5098,10 +5479,6 @@ void light_enable(bool enable);
 //! @} // group Light
 
 //! @} // group UI
-
-//!   @} // group Animation
-//! @} // group UI
-typedef int32_t (*AnimationTimingFunction)(uint32_t time_normalized);
 
 //! Returns the current time in Unix Timestamp Format with Milliseconds
 //!     @param tloc if provided receives current Unix Time seconds portion

@@ -1,0 +1,22 @@
+import os.path
+import json
+
+top = '.'
+out = 'build'
+
+def options(ctx):
+  ctx.load('pebble_sdk')
+
+def configure(ctx):
+  ctx.load('pebble_sdk')
+
+def build(ctx):
+  ctx.load('pebble_sdk')
+  print ctx.path.find_dir('../').abspath()
+  ctx.pbl_program(source=ctx.path.ant_glob('src/**/*.c'),
+                  includes=[ctx.path.find_dir('../src/').abspath()],
+                  stlibpath=[ctx.path.find_dir('../dist').abspath()],
+                  stlib=['linked-list'],
+                  target='pebble-app.elf')
+  ctx.pbl_bundle(elf='pebble-app.elf',
+                 js=ctx.path.ant_glob('src/js/**/*.js'))

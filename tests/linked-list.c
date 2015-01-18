@@ -1,6 +1,6 @@
 /*
 
-Linked List v0.3
+Linked List v0.4
 A Pebble library for working with linked lists.
 http://smallstoneapps.github.io/linked-list/
 
@@ -38,7 +38,7 @@ tests/linked-list.c
 #include "unit.h"
 #include "../src/linked-list.h"
 
-#define VERSION_LABEL "0.3"
+#define VERSION_LABEL "0.4"
 
 // Colour code definitions to make the output all pretty.
 #define KNRM  "\x1B[0m"

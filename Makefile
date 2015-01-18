@@ -1,5 +1,5 @@
 #
-# Linked List v0.3
+# Linked List v0.4
 # A Pebble library for working with linked lists.
 # http://smallstoneapps.github.io/linked-list/
 #
@@ -36,9 +36,13 @@ PEBBLE_HEADERS=tests/include
 
 CC=gcc
 ifeq ($(TRAVIS), true)
+CC_TEST=$(CC)
 CFLAGS=
+AR=ar
 else
+CC_TEST=arm-none-eabi-gcc
 CFLAGS=-std=c11
+AR=arm-none-eabi-ar
 endif
 CINCLUDES=-I $(PEBBLE_HEADERS) -I tests/
 
@@ -53,3 +57,11 @@ test:
 	@tests/run
 	@rm tests/run
 	@printf "\x1B[0m"
+
+dist:
+	@mkdir -p dist
+	@mkdir -p tmp
+	@$(CC) -c $(CFLAGS) $(CINCLUDES) $(SRC_FILES) -o tmp/linked-list.o
+	@$(AR) rcs dist/liblinked-list.a tmp/linked-list.o
+	@rm -r tmp
+	@cp src/linked-list.h dist/linked-list.h
