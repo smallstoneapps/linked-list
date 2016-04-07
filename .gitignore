@@ -1,1 +1,4 @@
 tests/include/
+.lock*
+build/
+dist.zip
