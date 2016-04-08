@@ -1,6 +1,6 @@
 {
   "name": "pebble-linked-list",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Pebble library for doing linked lists",
   "main": "src/c/linked-list.c",
   "directories": {
@@ -24,8 +24,5 @@
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": ["aplite", "basalt", "chalk"]
-  },
-  "files": [
-    "dist.zip"
-  ]
+  }
 }
