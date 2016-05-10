@@ -1,22 +1,27 @@
-import os.path
-import json
-
 top = '.'
 out = 'build'
 
+
 def options(ctx):
-  ctx.load('pebble_sdk')
+    ctx.load('pebble_sdk')
+
 
 def configure(ctx):
-  ctx.load('pebble_sdk')
+    ctx.load('pebble_sdk')
+
 
 def build(ctx):
-  ctx.load('pebble_sdk')
-  print ctx.path.find_dir('../').abspath()
-  ctx.pbl_program(source=ctx.path.ant_glob('src/**/*.c'),
-                  includes=[ctx.path.find_dir('../src/').abspath()],
-                  stlibpath=[ctx.path.find_dir('../dist').abspath()],
-                  stlib=['linked-list'],
-                  target='pebble-app.elf')
-  ctx.pbl_bundle(elf='pebble-app.elf',
-                 js=ctx.path.ant_glob('src/js/**/*.js'))
+    ctx.load('pebble_sdk')
+
+    binaries = []
+    for p in ctx.env.TARGET_PLATFORMS:
+        ctx.set_env(ctx.all_envs[p])
+        ctx.set_group(ctx.env.PLATFORM_NAME)
+        app_elf = '{}/pebble-app.elf'.format(ctx.env.BUILD_DIR)
+        ctx.pbl_program(source=ctx.path.ant_glob('src/**/*.c') + ctx.path.find_node('..').ant_glob('src/**/*.c'),
+                        includes=[ctx.path.find_node('../include')],
+                        target=app_elf)
+        binaries.append({'platform': p, 'app_elf': app_elf})
+
+    ctx.set_group('bundle')
+    ctx.pbl_bundle(binaries=binaries, js=ctx.path.ant_glob('src/js/**/*.js'))
