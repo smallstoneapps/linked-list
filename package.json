@@ -1,6 +1,6 @@
 {
   "name": "@smallstoneapps/linked-list",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Pebble library for doing linked lists",
   "main": "src/c/linked-list.c",
   "directories": {
@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/smallstoneapps/linked-list#readme",
   "pebble": {
+    "projectType": "package",
     "sdkVersion": "3",
     "targetPlatforms": ["aplite", "basalt", "chalk"]
   },
