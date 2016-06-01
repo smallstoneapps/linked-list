@@ -1,4 +1,5 @@
 tests/include/
 .lock*
+demo/.lock*
 build/
 dist.zip
