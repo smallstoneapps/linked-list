@@ -113,6 +113,7 @@ void linked_list_remove(LinkedRoot* root, uint16_t index) {
     }
     list->prev->next = list->next;
   }
+  free(list);
 }
 
 void linked_list_clear(LinkedRoot* root) {
