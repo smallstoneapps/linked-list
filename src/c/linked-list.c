@@ -150,6 +150,16 @@ int16_t linked_list_find_compare(LinkedRoot* root, void* object, ObjectCompare c
   return -1;
 }
 
+void linked_list_foreach(LinkedRoot* root, LinkedListForEachCallback callback, void* context) {
+  LinkedList* list = root->head;
+  while (list != NULL) {
+    if (!callback(list->object, context)) {
+      return;
+    }
+    list = list->next;
+  }
+}
+
 
 // Create a new LinkedList with the specified object.
 static LinkedList* create_list_item(void* object) {
