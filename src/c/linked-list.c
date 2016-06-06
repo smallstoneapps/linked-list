@@ -113,6 +113,7 @@ void linked_list_remove(LinkedRoot* root, uint16_t index) {
     }
     list->prev->next = list->next;
   }
+  free(list);
 }
 
 void linked_list_clear(LinkedRoot* root) {
@@ -147,6 +148,16 @@ int16_t linked_list_find_compare(LinkedRoot* root, void* object, ObjectCompare c
     index += 1;
   }
   return -1;
+}
+
+void linked_list_foreach(LinkedRoot* root, LinkedListForEachCallback callback, void* context) {
+  LinkedList* list = root->head;
+  while (list != NULL) {
+    if (!callback(list->object, context)) {
+      return;
+    }
+    list = list->next;
+  }
 }
 
 

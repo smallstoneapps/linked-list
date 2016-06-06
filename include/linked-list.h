@@ -6,6 +6,7 @@
 
 typedef struct LinkedRoot LinkedRoot;
 typedef bool (*ObjectCompare)(void* object1, void* object2);
+typedef bool (*LinkedListForEachCallback)(void *object, void *context);
 
 
 // Create a new LinkedRoot object, upon which all other linked list operations
@@ -62,3 +63,6 @@ int16_t linked_list_find(LinkedRoot* root, void* object);
 // be found, returns -1.
 // Uses the specified ObjectCompare function to compare objects.
 int16_t linked_list_find_compare(LinkedRoot* root, void* object, ObjectCompare compare);
+
+// Iterates over the list. Stops iterating if the callback returns false.
+void linked_list_foreach(LinkedRoot* root, LinkedListForEachCallback callback, void* context);
