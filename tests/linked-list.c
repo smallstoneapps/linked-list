@@ -2,7 +2,7 @@
 #include "unit.h"
 #include "linked-list.h"
 
-#define VERSION_LABEL "1.1.1"
+#define VERSION_LABEL "1.2.0"
 
 // Colour code definitions to make the output all pretty.
 #define KNRM  "\x1B[0m"
@@ -236,6 +236,38 @@ static char* find_compare_invalid(void) {
   return 0;
 }
 
+static uint8_t foreach_counter = 0;
+
+static bool foreach_callback(void *object, void *context) {
+  foreach_counter += 1;
+  if (context == NULL) {
+    return true;
+  }
+  return false;
+}
+
+static char* foreach(void) {
+  foreach_counter = 0;
+  Object* object1 = create_object(1);
+  Object* object2 = create_object(2);
+  linked_list_append(root, object1);
+  linked_list_append(root, object2);
+  linked_list_foreach(root, foreach_callback, NULL);
+  mu_assert(foreach_counter == 2, "Did not loop through every item in the list");
+  return 0;
+}
+
+static char* foreach_bail(void) {
+  foreach_counter = 0;
+  Object* object1 = create_object(1);
+  Object* object2 = create_object(2);
+  linked_list_append(root, object1);
+  linked_list_append(root, object2);
+  linked_list_foreach(root, foreach_callback, object1);
+  mu_assert(foreach_counter == 1, "Did not bail out of the loop");
+  return 0;
+}
+
 static char* all_tests(void) {
   mu_run_test(count_empty);
   mu_run_test(get_invalid_index);
@@ -262,6 +294,8 @@ static char* all_tests(void) {
   mu_run_test(find_invalid);
   mu_run_test(find_compare_valid);
   mu_run_test(find_compare_invalid);
+  mu_run_test(foreach);
+  mu_run_test(foreach_bail);
   return 0;
 }
 

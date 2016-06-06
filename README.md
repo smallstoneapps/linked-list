@@ -1,4 +1,4 @@
-# Linked List [![Build Status](http://img.shields.io/travis/smallstoneapps/linked-list.svg?style=flat-square)](https://travis-ci.org/smallstoneapps/linked-list/) ![Version 1.1.2](http://img.shields.io/badge/version-1.1.2-orange.svg?style=flat-square)
+# Linked List [![Build Status](http://img.shields.io/travis/smallstoneapps/linked-list.svg?style=flat-square)](https://travis-ci.org/smallstoneapps/linked-list/) ![Version 1.2.0](http://img.shields.io/badge/version-1.2.0-orange.svg?style=flat-square)
 
 A simple linked list implementation for Pebble apps and watchfaces.
 
