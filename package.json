@@ -1,6 +1,6 @@
 {
   "name": "@smallstoneapps/linked-list",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Pebble library for doing linked lists",
   "main": "src/c/linked-list.c",
   "directories": {

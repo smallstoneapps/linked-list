@@ -2,7 +2,7 @@
 #include "unit.h"
 #include "linked-list.h"
 
-#define VERSION_LABEL "1.2.1"
+#define VERSION_LABEL "1.2.2"
 
 // Colour code definitions to make the output all pretty.
 #define KNRM  "\x1B[0m"
