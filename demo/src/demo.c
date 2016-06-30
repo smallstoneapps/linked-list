@@ -1,5 +1,5 @@
 #include <pebble.h>
-#include <linked-list.h>
+#include <@smallstoneapps/linked-list/linked-list.h>
 
 static void init(void);
 static void deinit(void);

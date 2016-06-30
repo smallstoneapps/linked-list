@@ -1,0 +1,41 @@
+{
+  "name": "@smallstoneaps/linked-list-demo",
+  "version": "1.0.0",
+  "author": "Matthew Tole",
+  "description": "Demo app to show the basic usage of the linked-list package",
+  "main": "src/demo.c",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "@smallstoneapps/linked-list": "../"
+  },
+  "keywords": [
+    "pebble-app"
+  ],
+  "pebble": {
+    "sdkVersion": "3",
+    "resources": {
+      "media": []
+    },
+    "projectType": "native",
+    "uuid": "2f56fb14-9d70-43ec-b6a1-d94e9ea0f3c3",
+    "messageKeys": {},
+    "enableMultiJS": false,
+    "displayName": "Linked List Demo",
+    "watchapp": {
+      "onlyShownOnCommunication": false,
+      "hiddenApp": false,
+      "watchface": false
+    },
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite"
+    ],
+    "capabilities": []
+  }
+}
