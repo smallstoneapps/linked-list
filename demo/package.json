@@ -1,6 +1,6 @@
 {
   "name": "@smallstoneaps/linked-list-demo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Matthew Tole",
   "description": "Demo app to show the basic usage of the linked-list package",
   "main": "src/demo.c",
@@ -34,7 +34,8 @@
       "aplite",
       "basalt",
       "chalk",
-      "diorite"
+      "diorite",
+      "emery"
     ],
     "capabilities": []
   }

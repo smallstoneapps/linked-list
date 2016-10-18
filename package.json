@@ -1,6 +1,6 @@
 {
   "name": "@smallstoneapps/linked-list",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Pebble library for doing linked lists",
   "main": "src/c/linked-list.c",
   "directories": {
@@ -29,7 +29,8 @@
       "aplite",
       "basalt",
       "chalk",
-      "diorite"
+      "diorite",
+      "emery"
     ]
   },
   "files": [
